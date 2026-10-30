@@ -1,0 +1,84 @@
+# Per-agent CI for 'test_agent' — deploy + build jobs per environment.
+# Included from root .gitlab-ci.yml.
+#
+# deploy runs first (provisions ECR + runtime from a bootstrap image); build
+# then pushes the real image to the ECR repo deploy created.
+
+deploy:test_agent:dev:
+  extends: .deploy_agent
+  variables:
+    AGENT_NAME: test_agent
+    ENV: dev
+    AWS_ROLE_ARN: $NONPROD_AWS_ROLE_ARN
+  environment:
+    name: dev-test_agent
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: never
+    - if: $CI_COMMIT_BRANCH == "main"
+      changes:
+        - agents/test_agent/**/*
+
+build:test_agent:dev:
+  extends: .build_agent
+  variables:
+    AGENT_DIR: test_agent
+    ENV: dev
+    ECR_REPO_URL: ".dkr.ecr.eu-central-1.amazonaws.com/test_pmp_agents-dev-test_agent-ecr"
+    AWS_ROLE_ARN: $NONPROD_AWS_ROLE_ARN
+  needs:
+    - job: deploy:test_agent:dev
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: never
+    - if: $CI_COMMIT_BRANCH == "main"
+      changes:
+        - agents/test_agent/**/*
+
+deploy:test_agent:stage:
+  extends: .deploy_agent
+  variables:
+    AGENT_NAME: test_agent
+    ENV: stage
+    AWS_ROLE_ARN: $NONPROD_AWS_ROLE_ARN
+  environment:
+    name: stage-test_agent
+  rules:
+    - if: $CI_COMMIT_TAG
+
+build:test_agent:stage:
+  extends: .build_agent
+  variables:
+    AGENT_DIR: test_agent
+    ENV: stage
+    ECR_REPO_URL: ".dkr.ecr.eu-central-1.amazonaws.com/test_pmp_agents-stage-test_agent-ecr"
+    AWS_ROLE_ARN: $NONPROD_AWS_ROLE_ARN
+  needs:
+    - job: deploy:test_agent:stage
+  rules:
+    - if: $CI_COMMIT_TAG
+
+deploy:test_agent:prod:
+  extends: .deploy_agent
+  variables:
+    AGENT_NAME: test_agent
+    ENV: prod
+    AWS_ROLE_ARN: $PROD_AWS_ROLE_ARN
+  environment:
+    name: prod-test_agent
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: manual
+      allow_failure: false
+
+build:test_agent:prod:
+  extends: .build_agent
+  variables:
+    AGENT_DIR: test_agent
+    ENV: prod
+    ECR_REPO_URL: ".dkr.ecr.eu-central-1.amazonaws.com/test_pmp_agents-prod-test_agent-ecr"
+    AWS_ROLE_ARN: $PROD_AWS_ROLE_ARN
+  needs:
+    - job: deploy:test_agent:prod
+  rules:
+    - if: $CI_COMMIT_TAG

@@ -1,0 +1,119 @@
+# Root CI for the monorepo. Each agent is a self-contained stack: its own
+# Terraform (ECR + bootstrap image + secret + runtime) and its own image.
+#
+# Order is deploy -> build (not build -> deploy):
+#   deploy provisions the agent's ECR and creates the runtime from a bootstrap
+#   image, so the repo exists before build pushes the real image. There is no
+#   shared-infra stage — nothing is shared across agents.
+
+stages:
+  - deploy
+  - build
+
+include:
+  - local: agents/test_agent/.gitlab-ci.yml
+  # {ai-foundry-includes}
+
+variables:
+  AWS_REGION: eu-central-1
+  TF_VERSION: "1.11.4"
+  # OIDC role ARNs assumed by deploy/build jobs. Override in
+  # Settings → CI/CD → Variables to avoid committing them.
+  NONPROD_AWS_ROLE_ARN: ""
+  PROD_AWS_ROLE_ARN: ""
+
+# ── Terraform deploy template (per-agent stacks) ─────────────────────
+#
+# Uses python:3.12-slim (not hashicorp/terraform) because deploy jobs
+# need both Python (for ai-foundry CLI) and Terraform.
+
+.terraform_deploy:
+  stage: deploy
+  image: python:3.12-slim
+  id_tokens:
+    CI_JOB_JWT_V2:
+      aud: https://gitlab.com
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq unzip curl git jq > /dev/null
+    - pip install --quiet awscli
+    - >-
+      curl -fsSL
+      "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip"
+      -o terraform.zip
+    - unzip -q terraform.zip -d /usr/local/bin && rm terraform.zip
+    # Git auth for private GitLab Terraform Module Registry
+    - >-
+      git config --global
+      url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/".insteadOf
+      "https://gitlab.com/"
+    - export TF_TOKEN_gitlab_com=${CI_JOB_TOKEN}
+    - |
+      STS=$(aws sts assume-role-with-web-identity \
+        --role-arn ${AWS_ROLE_ARN} \
+        --role-session-name "gitlab-${CI_PROJECT_ID}-${CI_PIPELINE_ID}" \
+        --web-identity-token ${CI_JOB_JWT_V2} \
+        --duration-seconds 3600)
+      export AWS_ACCESS_KEY_ID=$(echo $STS | jq -r '.Credentials.AccessKeyId')
+      export AWS_SECRET_ACCESS_KEY=$(echo $STS | jq -r '.Credentials.SecretAccessKey')
+      export AWS_SESSION_TOKEN=$(echo $STS | jq -r '.Credentials.SessionToken')
+    - >-
+      pip install --quiet ai-foundry-platform-sdk[cli]
+      --extra-index-url https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/api/v4/projects/80473976/packages/pypi/simple
+
+# Per-agent deploy: provisions ECR (+ bootstrap image) and the runtime.
+# Agent CI fragments set AGENT_NAME / ENV / AWS_ROLE_ARN.
+.deploy_agent:
+  extends: .terraform_deploy
+  script:
+    - ai-foundry deploy --agent ${AGENT_NAME} --env ${ENV} --auto-approve
+
+# ── Build template (per-agent image, pushed after deploy) ────────────
+#
+# IMPORTANT — two non-obvious flags are required:
+#   --provenance=false --sbom=false
+# Without them, buildx pushes an OCI image index instead of a Docker v2
+# manifest. AgentCore cannot pull OCI image indexes and containers will
+# silently fail with zero logs and 424 errors.
+
+.build_agent:
+  stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+  id_tokens:
+    CI_JOB_JWT_V2:
+      aud: https://gitlab.com
+  before_script:
+    # --upgrade libexpat: docker:24 ships a libexpat older than what
+    # aws-cli's Python needs — without it the apk install fails.
+    - apk add --no-cache --upgrade libexpat aws-cli jq
+    # QEMU enables ARM64 cross-compilation on x86 GitLab runners
+    - docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+    - docker buildx create --use --name armbuilder
+    - |
+      STS=$(aws sts assume-role-with-web-identity \
+        --role-arn ${AWS_ROLE_ARN} \
+        --role-session-name "gitlab-${CI_PROJECT_ID}-${CI_PIPELINE_ID}" \
+        --web-identity-token ${CI_JOB_JWT_V2} \
+        --duration-seconds 3600)
+      export AWS_ACCESS_KEY_ID=$(echo $STS | jq -r '.Credentials.AccessKeyId')
+      export AWS_SECRET_ACCESS_KEY=$(echo $STS | jq -r '.Credentials.SecretAccessKey')
+      export AWS_SESSION_TOKEN=$(echo $STS | jq -r '.Credentials.SessionToken')
+    - >-
+      aws ecr get-login-password --region ${AWS_REGION}
+      | docker login --username AWS --password-stdin ${ECR_REPO_URL%%/*}
+  script:
+    - |
+      docker buildx build \
+        --platform linux/arm64 \
+        --secret id=gitlab_token,env=GITLAB_PYPI_TOKEN \
+        --provenance=false \
+        --sbom=false \
+        --cache-from type=registry,ref=${ECR_REPO_URL}:buildcache \
+        --cache-to type=registry,ref=${ECR_REPO_URL}:buildcache,mode=max \
+        --tag ${ECR_REPO_URL}:${CI_COMMIT_SHORT_SHA} \
+        --tag ${ECR_REPO_URL}:latest \
+        --push \
+        agents/${AGENT_DIR}/

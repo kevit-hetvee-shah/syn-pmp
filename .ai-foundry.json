@@ -1,0 +1,29 @@
+{
+  "mode": "monorepo",
+  "application": "test_pmp_agents",
+  "region": "eu-central-1",
+  "accounts": {
+    "nonprod": "",
+    "prod": ""
+  },
+  "state_buckets": {
+    "nonprod": "ai-foundry-terraform-state-nonprod",
+    "prod": "ai-foundry-terraform-state-prod"
+  },
+  "oidc_role_arns": {
+    "nonprod": "",
+    "prod": ""
+  },
+  "vpc_private_subnet_ids": {
+    "nonprod": [],
+    "prod": []
+  },
+  "vpc_security_group_ids": {
+    "nonprod": [],
+    "prod": []
+  },
+  "jwt_audiences": {
+    "nonprod": [],
+    "prod": []
+  }
+}

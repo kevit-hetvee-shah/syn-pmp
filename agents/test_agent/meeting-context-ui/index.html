@@ -1,0 +1,701 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pre-Meeting Prep Agent — Meeting Context</title>
+<style>
+  :root {
+    --bg: #fbf3ea;
+    --card: #ffffff;
+    --border: #e7ddd0;
+    --text: #2b2420;
+    --muted: #8a7f72;
+    --accent: #1f9d55;
+    --accent-dark: #17803f;
+    --ok: #1f8a5a;
+    --error: #c0392b;
+    --disabled: #c9bfb2;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 16px 24px; border-bottom: 1px solid var(--border); background: var(--card);
+  }
+  header a.back { color: var(--text); text-decoration: none; font-size: 18px; }
+  header h1 { font-size: 18px; margin: 0; }
+
+  main { max-width: 860px; margin: 24px auto; padding: 0 16px 60px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 24px; }
+  .card-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px; }
+  .card-head h2 { margin: 0; font-size: 16px; }
+  .card-head-right { display: flex; align-items: center; gap: 14px; }
+  .step-label { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+  .btn.sample-fill { font-size: 12px; padding: 6px 12px; color: var(--accent-dark); border-color: var(--accent); background: #f3fbf6; }
+  .readiness { font-size: 13px; color: var(--ok); }
+  .readiness.incomplete { color: var(--muted); }
+
+  label { display: block; font-size: 13px; font-weight: 600; margin: 16px 0 4px; }
+  label .hint { font-weight: 400; color: var(--muted); display: block; font-size: 12px; margin-top: 2px; }
+  label .req { color: var(--error); }
+  select:disabled { background: #f2ede4; color: var(--muted); cursor: not-allowed; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  input, select, textarea {
+    width: 100%; padding: 9px 10px; border: 1px solid var(--border); border-radius: 6px;
+    font-size: 14px; font-family: inherit; background: #fffdfb; color: var(--text);
+  }
+  textarea { min-height: 60px; resize: vertical; }
+  .duration-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .duration-row .unit { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .chip {
+    background: #e8f6ee; color: var(--accent-dark); padding: 4px 10px; border-radius: 14px;
+    font-size: 13px; display: flex; align-items: center; gap: 6px;
+  }
+  .chip button { background: none; border: none; cursor: pointer; color: var(--accent-dark); font-size: 13px; padding: 0; }
+  .add-product { display: flex; gap: 8px; margin-top: 8px; }
+  .add-product input { flex: 1; }
+  .add-product button {
+    background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+    padding: 0 12px; cursor: pointer; font-size: 13px; white-space: nowrap;
+  }
+
+  .combo { position: relative; }
+  .combo-list {
+    position: absolute; top: calc(100% + 2px); left: 0; right: 0; z-index: 10;
+    background: #fff; border: 1px solid var(--border); border-radius: 6px;
+    max-height: 220px; overflow-y: auto; box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+  }
+  .combo-item { padding: 8px 10px; font-size: 14px; cursor: pointer; }
+  .combo-item:hover, .combo-item.active { background: #e8f6ee; }
+  .combo-empty { padding: 8px 10px; font-size: 13px; color: var(--muted); }
+
+  .dp-toggle { display: flex; gap: 20px; margin-top: 6px; }
+  .radio-label { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 400; margin: 0; }
+  .radio-label input { width: auto; }
+  .dp-section { margin-top: 10px; padding: 14px; background: #fbf8f4; border: 1px solid var(--border); border-radius: 8px; }
+  .dp-result { margin-top: 14px; padding: 10px 12px; border-radius: 6px; background: #e8f6ee; color: var(--accent-dark); font-size: 13px; font-weight: 600; }
+  .dp-result.undetermined { background: #f2ede4; color: var(--muted); }
+  .hint { font-size: 12px; color: var(--muted); margin: 0 0 10px; }
+
+  .footnote { font-size: 12px; color: var(--muted); margin-top: 20px; }
+  .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+  .btn { padding: 10px 18px; border-radius: 6px; font-size: 14px; cursor: pointer; border: 1px solid var(--border); background: #fff; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .btn.primary:disabled { background: var(--disabled); border-color: var(--disabled); cursor: not-allowed; }
+
+  .status-banner { margin-top: 16px; padding: 10px 14px; border-radius: 6px; font-size: 13px; display: none; }
+  .status-banner.error { display: block; background: #fdecea; color: var(--error); }
+  .status-banner.success { display: block; background: #e9f7ef; color: var(--ok); }
+
+  #endpoint-config {
+    font-size: 11px; color: var(--muted); display: flex; gap: 6px; align-items: center;
+    padding: 6px 24px; background: var(--card); border-bottom: 1px solid var(--border);
+  }
+  #endpoint-config input { width: 280px; font-size: 11px; padding: 3px 6px; }
+</style>
+</head>
+<body>
+
+<div id="endpoint-config">
+  API base:
+  <input id="api-base" value="http://localhost:8081/api" />
+  <span id="conn-status"></span>
+</div>
+
+<header>
+  <a class="back" href="dashboard.html" title="Back to dashboard">&larr;</a>
+  <h1>Pre-Meeting Prep Agent</h1>
+</header>
+
+<main>
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h2>Meeting Context</h2>
+        <p class="step-label" id="step-label" hidden>Step 1 of 2</p>
+      </div>
+      <div class="card-head-right">
+        <button class="btn sample-fill" id="fill-sample-btn" type="button" title="Fills every field with sample data for quick testing">⚡ Fill sample data</button>
+        <span class="readiness" id="readiness-label">— of 6 required fields ready</span>
+      </div>
+    </div>
+
+    <div class="row2">
+      <div>
+        <label for="customer-search">Customer <span class="req">*</span></label>
+        <div class="combo" id="customer-combo">
+          <input type="text" id="customer-search" autocomplete="off" placeholder="Search customer…" />
+          <input type="hidden" id="customer" />
+          <div class="combo-list" id="customer-list" hidden></div>
+        </div>
+      </div>
+      <div>
+        <label for="meeting-type">Meeting type <span class="req">*</span></label>
+        <select id="meeting-type" disabled></select>
+      </div>
+    </div>
+
+    <div class="row2">
+      <div>
+        <label for="meeting-date">Meeting date <span class="req">*</span></label>
+        <input type="date" id="meeting-date" />
+      </div>
+      <div>
+        <label>Meeting duration</label>
+        <div class="duration-row">
+          <div><input type="number" id="duration-hours" min="0" placeholder="0" /><div class="unit">hours</div></div>
+          <div><input type="number" id="duration-minutes" min="0" max="59" placeholder="0" /><div class="unit">min</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row2">
+      <div>
+        <label for="season">Season <span class="req">*</span></label>
+        <select id="season"></select>
+      </div>
+      <div>
+        <label for="campaign">Campaign <span class="req">*</span></label>
+        <select id="campaign"></select>
+      </div>
+    </div>
+
+    <label for="location">Location</label>
+    <select id="location"></select>
+
+    <label for="objectives">Objective <span class="req">*</span></label>
+    <textarea id="objectives"></textarea>
+
+    <label for="hook">Hook</label>
+    <input id="hook" />
+
+    <label for="notes">Notes for the agent</label>
+    <textarea id="notes"></textarea>
+
+    <label>Focus products</label>
+    <div class="chips" id="product-chips"></div>
+    <div class="add-product">
+      <input id="product-input" list="product-suggestions" placeholder="Add product" />
+      <datalist id="product-suggestions"></datalist>
+      <button id="add-product-btn" type="button">+ Add product</button>
+    </div>
+
+    <label>Distributor Profile</label>
+    <div class="dp-toggle">
+      <label class="radio-label"><input type="radio" name="dp-known" value="yes" id="dp-known-yes" /> I already know the Distributor Profile</label>
+      <label class="radio-label"><input type="radio" name="dp-known" value="no" id="dp-known-no" /> I don't know it yet</label>
+    </div>
+
+    <div id="dp-known-section" class="dp-section" hidden>
+      <label for="dp-known-value">Profile</label>
+      <select id="dp-known-value">
+        <option value="">Select profile…</option>
+        <option>Hedgehog</option>
+        <option>Polar Bear</option>
+        <option>Wolf</option>
+        <option>Dolphin</option>
+      </select>
+    </div>
+
+    <div id="dp-dynamic-section" class="dp-section" hidden>
+      <div id="dp-dynamic-summary"></div>
+    </div>
+
+    <p class="footnote">🔒 Data is read with your identity — you only see what you already have access to.</p>
+
+    <div class="status-banner" id="status-banner"></div>
+
+    <div class="actions">
+      <button class="btn primary" id="confirm-btn" disabled>Confirm &amp; Next →</button>
+    </div>
+  </div>
+</main>
+
+<script>
+const apiBaseInput = document.getElementById('api-base');
+apiBaseInput.value = localStorage.getItem('mc_api_base') || apiBaseInput.value;
+apiBaseInput.addEventListener('change', () => localStorage.setItem('mc_api_base', apiBaseInput.value));
+
+function apiBase() { return apiBaseInput.value.replace(/\/$/, ''); }
+
+let draftId = localStorage.getItem('mc_draft_id') || null;
+let focusProducts = [];
+let saveTimer = null;
+let pressureScores = {};
+let partnershipScores = {};
+let dpKnown = null; // null = not answered, true = known, false = dynamic
+let customerOptions = [];
+
+const el = (id) => document.getElementById(id);
+const statusBanner = el('status-banner');
+
+function showStatus(message, kind) {
+  statusBanner.textContent = message;
+  statusBanner.className = 'status-banner ' + kind;
+}
+
+async function fetchJSON(path, options) {
+  const resp = await fetch(apiBase() + path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options,
+  });
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}));
+    const err = new Error(body.detail?.message || body.detail || resp.statusText);
+    err.status = resp.status;
+    err.body = body;
+    throw err;
+  }
+  return resp.json();
+}
+
+function fillSelect(selectEl, values, placeholder) {
+  const current = selectEl.value;
+  selectEl.innerHTML = '';
+  const opt0 = document.createElement('option');
+  opt0.value = '';
+  opt0.textContent = placeholder;
+  selectEl.appendChild(opt0);
+  for (const v of values) {
+    const opt = document.createElement('option');
+    opt.value = v;
+    opt.textContent = v;
+    selectEl.appendChild(opt);
+  }
+  if (values.includes(current)) selectEl.value = current;
+}
+
+function fillDatalist(dataListEl, values) {
+  dataListEl.innerHTML = '';
+  for (const v of values) {
+    const opt = document.createElement('option');
+    opt.value = v;
+    dataListEl.appendChild(opt);
+  }
+}
+
+function renderChips() {
+  const container = el('product-chips');
+  container.innerHTML = '';
+  focusProducts.forEach((p, i) => {
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.innerHTML = `${p} <button type="button" data-i="${i}">×</button>`;
+    chip.querySelector('button').addEventListener('click', () => {
+      focusProducts.splice(i, 1);
+      renderChips();
+      scheduleSave();
+    });
+    container.appendChild(chip);
+  });
+}
+
+function durationMinutes() {
+  const hours = parseInt(el('duration-hours').value, 10) || 0;
+  const minutes = parseInt(el('duration-minutes').value, 10) || 0;
+  const total = hours * 60 + minutes;
+  return total > 0 ? total : null;
+}
+
+function currentDraft() {
+  return {
+    customer_id: el('customer').value || null,
+    meeting_type: el('meeting-type').value || null,
+    meeting_date: el('meeting-date').value || null,
+    duration_minutes: durationMinutes(),
+    season: el('season').value || null,
+    campaign: el('campaign').value || null,
+    location: el('location').value || null,
+    objectives: el('objectives').value || null,
+    hook: el('hook').value || null,
+    focus_products: focusProducts,
+    notes: el('notes').value || null,
+    distributor_profile_known: dpKnown,
+    distributor_profile: dpKnown === true ? (el('dp-known-value').value || null) : null,
+    pressure_scores: dpKnown === false ? pressureScores : {},
+    partnership_scores: dpKnown === false ? partnershipScores : {},
+  };
+}
+
+async function loadMeetingTypesAndLocations() {
+  try {
+    const [meetingTypes, locations] = await Promise.all([
+      fetchJSON('/meeting-types'),
+      fetchJSON('/locations'),
+    ]);
+    // Locked to a single value, per the user: "no other options could be
+    // selected for now" — no blank placeholder, just the one option,
+    // pre-selected, with the <select disabled> set in the HTML.
+    const select = el('meeting-type');
+    select.innerHTML = '';
+    for (const v of meetingTypes) {
+      const opt = document.createElement('option');
+      opt.value = v;
+      opt.textContent = v;
+      select.appendChild(opt);
+    }
+    fillSelect(el('location'), locations, 'Select location…');
+    el('conn-status').textContent = '✓ connected';
+    // No scheduleSave() here — init() saves once at the end, AFTER
+    // loadExistingDraft() has had a chance to restore every field. Saving
+    // here unconditionally used to autosave a BLANK customer/season/etc. on
+    // every reload — including right after returning from
+    // distributor-profile.html — silently overwriting a real customer
+    // selection with null (found via live testing: select a customer, go to
+    // the assessment page, skip/return, and the draft's customer_id came
+    // back null even though the server had correctly saved it moments
+    // earlier — PUT replaces the whole draft, so a premature autosave from
+    // an unrestored form is destructive, not harmless).
+  } catch (e) {
+    el('conn-status').textContent = '✗ cannot reach API — is uvicorn running?';
+  }
+}
+
+const PROFILE_INFO = {
+  'Hedgehog': 'Under pressure — high pressure to protect value, prefers autonomy.',
+  'Wolf': 'Strategic partner — high pressure to protect value, open to co-leadership.',
+  'Polar Bear': 'Self-reliant and secure — low pressure to protect value, prefers autonomy.',
+  'Dolphin': 'Curious explorer — low pressure to protect value, open to co-leadership.',
+};
+
+function sumScores(scores) {
+  const values = Object.values(scores);
+  return values.length ? values.reduce((a, b) => a + b, 0) : null;
+}
+
+// Reflects the server's own resolved `distributor_profile` (from the last
+// save's response) — never recomputed client-side here, so this can never
+// disagree with what's actually persisted. The full question-by-question
+// assessment form lives on distributor-profile.html — step 2 of this
+// wizard, reached via the normal "Next" action below, not a side-trip link.
+function renderDistributorSummary(resolvedProfile) {
+  const summary = el('dp-dynamic-summary');
+  const pressureTotal = sumScores(pressureScores);
+  const partnershipTotal = sumScores(partnershipScores);
+  const answeredAny = pressureTotal !== null || partnershipTotal !== null;
+
+  if (!answeredAny) {
+    summary.innerHTML = '<p class="hint">A short assessment — two sections, a few questions each, all optional — is the next step.</p>';
+    return;
+  }
+  const pText = pressureTotal === null ? '—' : pressureTotal;
+  const ptText = partnershipTotal === null ? '—' : partnershipTotal;
+  if (resolvedProfile) {
+    summary.innerHTML = `<div class="dp-result"><strong>${resolvedProfile}</strong> — ${PROFILE_INFO[resolvedProfile]}<br><span class="hint">Pressure ${pText}/60 · Partnership ${ptText}/60 — you can revisit this on the next step.</span></div>`;
+  } else {
+    summary.innerHTML = `<div class="dp-result undetermined">Not enough answers yet to determine a profile.<br><span class="hint">Pressure ${pText}/60 · Partnership ${ptText}/60 — these won't be included in the deck unless a profile is determined.</span></div>`;
+  }
+}
+
+function setDistributorProfileMode(known) {
+  dpKnown = known;
+  el('dp-known-section').hidden = known !== true;
+  el('dp-dynamic-section').hidden = known !== false;
+  if (known === false) renderDistributorSummary(null);
+  updatePrimaryActionButton();
+}
+
+// The bottom button is the ONE forward action for this step — its label and
+// destination change depending on whether there's a second form (the
+// Distributor Assessment) still ahead, rather than a separate "go check
+// this out" link living alongside a differently-worded confirm button.
+function updatePrimaryActionButton() {
+  const btn = el('confirm-btn');
+  btn.textContent = dpKnown === false ? 'Next →' : 'Confirm & Next →';
+  el('step-label').hidden = dpKnown !== false;
+}
+
+async function loadExistingDraft() {
+  if (!draftId) return;
+  try {
+    const record = await fetchJSON(`/meeting-context/${draftId}`);
+
+    // Restore EVERY field, not just the distributor-profile ones — a PUT
+    // replaces the whole draft, so the next autosave (scheduled at the end
+    // of init()) must start from the true current state, never a blank
+    // form. Call this before populating any <select>'s options and this
+    // still works: it just sets .value on a hidden text input / plain
+    // selects — fillSelect()'s own "preserve current value" check (called
+    // afterwards, from loadCustomersSeasonsAndCampaigns) keeps season/
+    // campaign selected once their real <option>s exist.
+    el('customer').value = record.customer_id || '';
+    el('customer-search').value = record.customer_id || '';
+    if (record.meeting_type) el('meeting-type').value = record.meeting_type;
+    el('meeting-date').value = record.meeting_date || '';
+    if (record.duration_minutes) {
+      el('duration-hours').value = Math.floor(record.duration_minutes / 60) || '';
+      el('duration-minutes').value = record.duration_minutes % 60 || '';
+    }
+    el('season').value = record.season || '';
+    el('campaign').value = record.campaign || '';
+    el('location').value = record.location || '';
+    el('objectives').value = record.objectives || '';
+    el('hook').value = record.hook || '';
+    el('notes').value = record.notes || '';
+    focusProducts = [...(record.focus_products || [])];
+
+    pressureScores = { ...(record.pressure_scores || {}) };
+    partnershipScores = { ...(record.partnership_scores || {}) };
+    if (record.distributor_profile_known === true) {
+      el('dp-known-yes').checked = true;
+      el('dp-known-value').value = record.distributor_profile || '';
+      setDistributorProfileMode(true);
+    } else if (record.distributor_profile_known === false) {
+      el('dp-known-no').checked = true;
+      setDistributorProfileMode(false);
+      renderDistributorSummary(record.distributor_profile);
+    }
+  } catch (e) {
+    if (e.status === 404) {
+      draftId = null;
+      localStorage.removeItem('mc_draft_id');
+    }
+  }
+}
+
+async function loadCustomersSeasonsAndCampaigns() {
+  try {
+    const [customers, seasons, campaigns] = await Promise.all([
+      fetchJSON('/customers'),
+      fetchJSON('/seasons'),
+      fetchJSON('/campaigns'),
+    ]);
+    customerOptions = customers.items;
+    fillSelect(el('season'), seasons.items, 'Select season…');
+    fillSelect(el('campaign'), campaigns.items, 'Select campaign…');
+  } catch (e) {
+    el('conn-status').textContent = '✗ customers/seasons/campaigns failed to load: ' + e.message;
+  }
+}
+
+function renderCustomerList(filter) {
+  const list = el('customer-list');
+  list.innerHTML = '';
+  const needle = (filter || '').toLowerCase();
+  const matches = customerOptions.filter((c) => c.toLowerCase().includes(needle));
+  if (!matches.length) {
+    const empty = document.createElement('div');
+    empty.className = 'combo-empty';
+    empty.textContent = 'No matching customers';
+    list.appendChild(empty);
+  }
+  for (const name of matches) {
+    const item = document.createElement('div');
+    item.className = 'combo-item';
+    item.textContent = name;
+    // mousedown (not click) fires before the search input's blur, so the
+    // list doesn't hide itself before the selection registers.
+    item.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      selectCustomer(name);
+    });
+    list.appendChild(item);
+  }
+  list.hidden = false;
+}
+
+function selectCustomer(name) {
+  el('customer').value = name;
+  el('customer-search').value = name;
+  el('customer-list').hidden = true;
+  scheduleSave();
+  loadProductsForCustomer();
+}
+
+async function loadProductsForCustomer() {
+  try {
+    const customer = el('customer').value;
+    const qs = customer ? ('?customer=' + encodeURIComponent(customer)) : '';
+    const products = await fetchJSON('/product-suggestions' + qs);
+    fillDatalist(el('product-suggestions'), products.items);
+  } catch (e) {
+    el('conn-status').textContent = '✗ product suggestions failed to load: ' + e.message;
+  }
+}
+
+async function refreshReadiness() {
+  if (!draftId) return;
+  try {
+    const r = await fetchJSON(`/meeting-context/${draftId}/readiness`);
+    const label = el('readiness-label');
+    label.textContent = `${r.ready_count} of ${r.required_count} required fields ready`;
+    label.className = 'readiness' + (r.all_ready ? '' : ' incomplete');
+    el('confirm-btn').disabled = !r.all_ready;
+  } catch (e) { /* ignore */ }
+}
+
+async function saveDraftNow() {
+  const draft = currentDraft();
+  try {
+    let record;
+    if (draftId) {
+      try {
+        record = await fetchJSON(`/meeting-context/${draftId}/draft`, { method: 'PUT', body: JSON.stringify(draft) });
+      } catch (e) {
+        if (e.status !== 404) throw e;
+        // Stale draftId from a previous server run — the draft store is
+        // in-memory and resets on restart. Self-heal: drop it and create a
+        // fresh draft below, instead of getting stuck failing forever.
+        draftId = null;
+      }
+    }
+    if (!draftId) {
+      record = await fetchJSON('/meeting-context/draft', { method: 'POST', body: JSON.stringify(draft) });
+      draftId = record.id;
+      localStorage.setItem('mc_draft_id', draftId);
+    }
+    await refreshReadiness();
+    if (dpKnown === false) renderDistributorSummary(record.distributor_profile);
+  } catch (e) {
+    showStatus('Could not save draft: ' + e.message, 'error');
+  }
+}
+
+// Every save goes through this single chain so overlapping calls (e.g. the
+// page-load meeting-type auto-save still in flight when the rep picks a
+// customer a moment later) run one after another instead of racing — two
+// concurrent saveDraftNow() calls both seeing draftId as null would each
+// POST a separate draft, and whichever response lands last silently wins
+// `draftId`, which can be the LESS complete one. Found via live testing:
+// selecting a customer then immediately navigating away could end up
+// persisting customer_id: null. Chaining through one promise means a second
+// call always waits for the first's `draftId` to land before reading it.
+let saveChain = Promise.resolve();
+function saveDraft() {
+  saveChain = saveChain.then(saveDraftNow, saveDraftNow);
+  return saveChain;
+}
+
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveDraft, 400);
+}
+
+async function confirmAndNext() {
+  await saveDraft();
+
+  // Two-step wizard: when the rep doesn't know the Distributor Profile,
+  // this button's real job is "Next" — it moves forward to the second
+  // form (distributor-profile.html), not a confirm. Confirming + moving on
+  // to the deck only happens from THAT form's own "Confirm & Next", once
+  // its (entirely optional) questions have had their chance to be seen.
+  if (dpKnown === false) {
+    window.location.href = 'distributor-profile.html?draftId=' + encodeURIComponent(draftId);
+    return;
+  }
+
+  try {
+    await fetchJSON(`/meeting-context/${draftId}/confirm`, { method: 'POST' });
+    // Matches the "Pre-Meeting Agent 1.pdf" mockup: Confirm & Next navigates
+    // to the deck screen — it does not trigger a direct browser download.
+    // That screen is where "Download PPT" actually lives.
+    window.location.href = 'deck-review.html?draftId=' + encodeURIComponent(draftId);
+  } catch (e) {
+    const prompts = e.body?.detail?.follow_up_prompts || [];
+    showStatus(prompts.length ? 'Still missing: ' + prompts.join(' ') : ('Error: ' + e.message), 'error');
+  }
+}
+
+function firstRealOptionValue(selectEl) {
+  for (const opt of selectEl.options) {
+    if (opt.value) return opt.value;
+  }
+  return '';
+}
+
+// Dev/testing convenience only — fills every field with real, backend-
+// sourced values (not invented ones: customer/season/campaign/location come
+// from the same lists the dropdowns already loaded, products from that
+// customer's own real suggestions) so "Confirm & Next" → "Download PPT" can
+// be clicked through immediately without hand-filling the form each time.
+async function fillSampleData() {
+  const customer = customerOptions.includes('ACTURA') ? 'ACTURA' : customerOptions[0];
+  if (customer) {
+    el('customer').value = customer;
+    el('customer-search').value = customer;
+  }
+
+  const meetingDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000); // 2 weeks out
+  el('meeting-date').value = meetingDate.toISOString().slice(0, 10);
+  el('duration-hours').value = 1;
+  el('duration-minutes').value = 0;
+
+  el('season').value = firstRealOptionValue(el('season'));
+  el('campaign').value = firstRealOptionValue(el('campaign'));
+  el('location').value = firstRealOptionValue(el('location'));
+
+  el('objectives').value = "Review last season's performance and align on priority products for the upcoming campaign.";
+  el('hook').value = 'Strong growth in wheat fungicides last season.';
+  el('notes').value = 'Sample data auto-filled for quick testing — replace before a real meeting.';
+
+  if (customer) await loadProductsForCustomer();
+  focusProducts = [...el('product-suggestions').options].map((o) => o.value).slice(0, 2);
+  renderChips();
+
+  el('dp-known-yes').checked = true;
+  setDistributorProfileMode(true);
+  el('dp-known-value').value = 'Wolf';
+
+  await saveDraft();
+  showStatus('Sample data filled in — review, then Confirm & Next.', 'success');
+}
+
+for (const id of ['meeting-date', 'duration-hours', 'duration-minutes', 'season', 'campaign', 'location', 'objectives', 'hook', 'notes']) {
+  el(id).addEventListener('input', scheduleSave);
+  el(id).addEventListener('change', scheduleSave);
+}
+el('meeting-type').addEventListener('change', scheduleSave);
+
+el('customer-search').addEventListener('focus', () => renderCustomerList(el('customer-search').value));
+el('customer-search').addEventListener('input', () => {
+  // Typing invalidates whatever was previously selected until a real
+  // option from the list is clicked — the hidden value must always come
+  // from the dropdown, never from free text.
+  el('customer').value = '';
+  renderCustomerList(el('customer-search').value);
+});
+el('customer-search').addEventListener('blur', () => {
+  // Delay so a click on a list item (mousedown) registers before the list hides.
+  setTimeout(() => { el('customer-list').hidden = true; }, 150);
+  if (el('customer').value !== el('customer-search').value) {
+    // Left without picking a real option — don't leave stale free text behind.
+    el('customer-search').value = el('customer').value;
+  }
+});
+
+el('dp-known-yes').addEventListener('change', () => { setDistributorProfileMode(true); scheduleSave(); });
+el('dp-known-no').addEventListener('change', () => { setDistributorProfileMode(false); scheduleSave(); });
+el('dp-known-value').addEventListener('change', scheduleSave);
+
+el('confirm-btn').addEventListener('click', confirmAndNext);
+el('fill-sample-btn').addEventListener('click', fillSampleData);
+el('add-product-btn').addEventListener('click', () => {
+  const input = el('product-input');
+  const v = input.value.trim();
+  if (v && !focusProducts.includes(v)) {
+    focusProducts.push(v);
+    renderChips();
+    scheduleSave();
+  }
+  input.value = '';
+});
+
+(async function init() {
+  await loadMeetingTypesAndLocations();      // populates meeting-type + location OPTIONS
+  await loadCustomersSeasonsAndCampaigns();  // populates season/campaign OPTIONS + customerOptions
+  await loadExistingDraft();                 // now that every <select>'s options exist, restore real VALUES (if any)
+  await loadProductsForCustomer();           // uses the (possibly just-restored) customer value
+  renderChips();
+  scheduleSave();  // single save point: persists either a brand-new draft's default meeting_type, or re-affirms a restored one — never a half-populated form
+})();
+</script>
+</body>
+</html>

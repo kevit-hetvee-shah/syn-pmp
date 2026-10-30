@@ -1,0 +1,4 @@
+bucket       = "ai-foundry-terraform-state-nonprod"
+key          = "agents/stage/test_pmp_agents/test_agent/terraform.tfstate"
+region       = "eu-central-1"
+use_lockfile = true

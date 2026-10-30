@@ -1,0 +1,47 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "test_agent"
+version = "0.1.0"
+description = "Test agent working"
+requires-python = ">=3.11"
+dependencies = [
+    "ai-foundry-platform-sdk[all]",
+    "aws-opentelemetry-distro",
+    "opentelemetry-exporter-otlp-proto-http",
+    "fastapi",
+    "python-pptx",
+    "databricks-sql-connector",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "httpx>=0.27.0",
+]
+
+[[tool.hatch.envs.default.matrix]]
+python = ["3.11"]
+
+[tool.hatch.build.targets.wheel]
+only-include = [
+    "app.py",
+    "schemas.py",
+    "mock_data.py",
+    "readiness.py",
+    "storage.py",
+    "context_api.py",
+    "decks_mock_data.py",
+    "builder.py",
+    "distributor_profile.py",
+    "agent_definitions",
+    "utils",
+    "data_access",
+    "pipeline",
+    "sql/templates",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

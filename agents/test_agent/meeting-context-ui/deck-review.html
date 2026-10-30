@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Business Review &amp; Outlook — Deck</title>
+<style>
+  :root {
+    --bg: #fbf3ea;
+    --card: #ffffff;
+    --border: #e7ddd0;
+    --text: #2b2420;
+    --muted: #8a7f72;
+    --accent: #1f9d55;
+    --accent-dark: #17803f;
+    --draft: #3b6fd6;
+    --diff-del-bg: #fdecea;
+    --diff-del-text: #c0392b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  header {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 14px 24px; border-bottom: 1px solid var(--border); background: var(--card);
+  }
+  header .left { display: flex; align-items: center; gap: 10px; }
+  header a.back { color: var(--text); text-decoration: none; font-size: 18px; }
+  header h1 { font-size: 16px; margin: 0; }
+  header .subtitle { font-size: 12px; color: var(--muted); margin: 0; }
+  header .right { display: flex; align-items: center; gap: 12px; }
+  .status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--draft); }
+  .btn { padding: 9px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; border: 1px solid var(--border); background: #fff; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .layout { display: grid; grid-template-columns: 300px 1fr 400px; gap: 0; height: calc(100vh - 57px); }
+
+  .slide-rail { border-right: 1px solid var(--border); overflow-y: auto; background: var(--card); display: flex; flex-direction: column; }
+  .slide-rail-header { padding: 16px 18px 10px; font-size: 13px; color: var(--muted); font-weight: 600; }
+  .slide-rail-list { padding: 0 12px 14px; }
+  .slide-rail .slide-item {
+    display: flex; gap: 10px; align-items: center; padding: 8px; border-radius: 8px;
+    margin-bottom: 10px; cursor: pointer; border: 1px solid transparent;
+  }
+  .slide-item:hover { background: #fbf8f4; }
+  .slide-item.selected { border-color: var(--accent); background: #f3fbf6; }
+  .slide-item .num { font-size: 12px; color: var(--muted); width: 18px; flex-shrink: 0; text-align: right; }
+  .slide-item.selected .num { color: var(--accent-dark); font-weight: 700; }
+
+  /* Mini slide thumbnails in the rail — these render the EXACT same markup
+     and CSS classes as the real .slide-preview (same slideMarkup() output in
+     JS), just at full reference size (THUMB_REF_WIDTH) and scaled down with
+     a CSS transform — like a real PPT editor's slide panel, not a
+     simplified stand-in. Still wireframe-only for "filled" numeric slides
+     (no literal numbers), same honesty rule as the main preview — but the
+     title text, layout, and structure are the real thing, just small. */
+  .slide-thumb-wrap {
+    flex: 1; aspect-ratio: 16 / 9; border-radius: 5px; overflow: hidden; border: 1px solid var(--border);
+    background: #fff; position: relative;
+  }
+  .slide-thumb-wrap .slide-preview {
+    position: absolute; top: 0; left: 0; transform-origin: top left;
+    border: none; border-radius: 0; box-shadow: none; pointer-events: none;
+  }
+
+  .main { padding: 32px; overflow-y: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .error-box { color: #c0392b; background: #fdecea; padding: 12px; border-radius: 6px; font-size: 13px; width: 100%; max-width: 980px; margin-bottom: 16px; }
+
+  /* Read-only slide preview — a visual layout mock, not rendered from the
+     real .pptx. Deliberately NEVER shows literal numbers for "filled"
+     slides (only a wireframe shape) — this project's whole point is never
+     putting a number in front of a rep that didn't come from a verified
+     fact, and a preview is exactly the kind of place a fabricated-looking
+     number could be mistaken for real. The actual figures only ever exist
+     in the downloaded .pptx, built from real fetched facts. */
+  .slide-preview {
+    width: 100%; max-width: 1040px; aspect-ratio: 16 / 9; background: #fff;
+    border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 4px 18px rgba(43,36,32,0.08);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .slide-source { width: 100%; max-width: 1040px; margin-top: 12px; font-size: 12.5px; color: var(--muted); text-align: right; }
+
+  .slide-preview.cover { align-items: center; justify-content: center; text-align: center; background: linear-gradient(160deg, #fff 60%, #f3fbf6 100%); padding: 36px; }
+  .slide-preview.cover .cover-title { font-size: 38px; font-weight: 700; color: var(--text); margin-bottom: 12px; }
+  .slide-preview.cover .cover-subtitle { font-size: 18px; color: var(--muted); }
+
+  .slide-preview.divider { align-items: center; justify-content: center; background: var(--accent-dark); }
+  .slide-preview.divider .divider-title { color: #fff; font-size: 34px; font-weight: 700; letter-spacing: 1px; text-align: center; padding: 0 32px; }
+
+  .slide-preview.content { padding: 34px 40px; }
+  .slide-preview.content .content-title { font-size: 23px; font-weight: 700; margin-bottom: 6px; }
+  .slide-preview.content .content-subtitle { font-size: 14px; color: var(--muted); margin-bottom: 22px; }
+  .wireframe-table { display: flex; flex-direction: column; gap: 10px; flex: 1; }
+  .wireframe-row { display: flex; gap: 10px; }
+  .wireframe-cell { flex: 1; height: 24px; border-radius: 4px; background: #f2ede4; }
+  .wireframe-row.header .wireframe-cell { background: #ddeee3; height: 20px; }
+  .wireframe-chart { flex: 1; margin-top: 16px; border-radius: 8px; background: repeating-linear-gradient(90deg, #f2ede4, #f2ede4 26px, #e8f6ee 26px, #e8f6ee 52px); }
+  .wireframe-bullets { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 18px; flex: 1; }
+  .wireframe-bullets li { display: flex; align-items: center; gap: 12px; }
+  .wireframe-bullets .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+  .wireframe-bullets .bar { height: 14px; border-radius: 4px; background: #f2ede4; }
+  .static-note { font-size: 13.5px; color: var(--muted); font-style: italic; margin-top: auto; }
+
+  .pagination { display: flex; align-items: center; gap: 16px; margin-top: 20px; font-size: 14px; color: var(--muted); }
+  .pagination button { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 16px; }
+  .pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Right panel — Agent / Changes / Audit, per the mockup's third screen. */
+  .side-panel { border-left: 1px solid var(--border); background: var(--card); display: flex; flex-direction: column; }
+  .side-tabs { display: flex; border-bottom: 1px solid var(--border); }
+  .side-tab { flex: 1; padding: 15px 0; background: none; border: none; border-bottom: 2px solid transparent; font-size: 14px; color: var(--muted); cursor: pointer; }
+  .side-tab.active { color: var(--accent-dark); font-weight: 600; border-bottom-color: var(--accent); }
+  .side-tab-panel { padding: 20px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; }
+  .side-tab-panel[hidden] { display: none; }
+  .side-hint { font-size: 12.5px; color: var(--muted); line-height: 1.6; margin: 0 0 16px; }
+
+  .agent-chat { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; flex: 1; }
+  .chat-bubble { font-size: 14px; padding: 12px 14px; border-radius: 10px; max-width: 94%; line-height: 1.5; }
+  .chat-bubble.user { align-self: flex-end; background: var(--accent); color: #fff; }
+  .chat-bubble.agent { align-self: flex-start; background: #f2ede4; color: var(--text); }
+  .chat-bubble .diff-box { margin-top: 10px; background: #fff; border-radius: 6px; padding: 10px 12px; font-size: 13px; }
+  .chat-bubble .diff-old { color: var(--diff-del-text); text-decoration: line-through; background: var(--diff-del-bg); border-radius: 4px; padding: 2px 5px; display: inline-block; margin-bottom: 5px; }
+  .chat-bubble .diff-new { color: var(--accent-dark); display: block; }
+  .chat-bubble .chat-links { margin-top: 10px; display: flex; gap: 16px; }
+  .chat-bubble .chat-links a { font-size: 13px; color: var(--accent-dark); font-weight: 600; cursor: pointer; text-decoration: underline; }
+
+  .apply-to { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+  .apply-to .pill { padding: 6px 14px; border-radius: 14px; border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 13px; }
+  .apply-to .pill.active { border-color: var(--accent); color: var(--accent-dark); background: #e8f6ee; font-weight: 600; }
+
+  .agent-input-row { display: flex; gap: 10px; align-items: center; }
+  .agent-input-row input { flex: 1; padding: 11px 14px; border: 1px solid var(--border); border-radius: 20px; font-size: 14px; }
+  .agent-send-btn {
+    width: 38px; height: 38px; border-radius: 50%; border: none; background: var(--accent); color: #fff;
+    cursor: pointer; font-size: 16px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  }
+  .agent-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .changes-empty, .audit-empty { font-size: 14px; color: var(--muted); padding: 16px 0; text-align: center; border: 1px dashed var(--border); border-radius: 8px; }
+  .changes-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+  .changes-list li { font-size: 13.5px; border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+  .changes-list .changes-slide { font-weight: 600; margin-bottom: 5px; }
+  .audit-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+  .audit-list li { font-size: 13.5px; border-left: 2px solid var(--accent); padding: 3px 0 3px 12px; }
+  .audit-list .audit-label { color: var(--muted); display: block; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="left">
+    <a class="back" href="dashboard.html" title="Back to dashboard">&larr;</a>
+    <div>
+      <h1>Business Review &amp; Outlook</h1>
+      <p class="subtitle" id="customer-name">Loading…</p>
+    </div>
+  </div>
+  <div class="right">
+    <span class="status"><span class="status-dot"></span> Draft</span>
+    <button class="btn primary" id="download-btn" disabled>Download PPT</button>
+  </div>
+</header>
+
+<div class="layout">
+  <div class="slide-rail">
+    <div class="slide-rail-header" id="slide-rail-header">Slides · —</div>
+    <div class="slide-rail-list" id="slide-rail"></div>
+  </div>
+
+  <div class="main">
+    <div class="error-box" id="error-box" style="display:none;"></div>
+    <div class="slide-preview" id="slide-preview"></div>
+    <div class="slide-source" id="slide-source"></div>
+    <div class="pagination">
+      <button id="prev-slide-btn" type="button" aria-label="Previous slide">&lsaquo;</button>
+      <span id="pagination-label">Slide 1 of 16</span>
+      <button id="next-slide-btn" type="button" aria-label="Next slide">&rsaquo;</button>
+    </div>
+  </div>
+
+  <div class="side-panel">
+    <div class="side-tabs">
+      <button class="side-tab active" data-tab="agent" type="button">Agent</button>
+      <button class="side-tab" data-tab="changes" type="button">Changes</button>
+      <button class="side-tab" data-tab="audit" type="button">Audit</button>
+    </div>
+
+    <div class="side-tab-panel" id="tab-agent">
+      <p class="side-hint">Chat-based editing isn't wired up to a real agent yet (Slide Generator / Critic aren't built). The example exchange below previews the planned interaction — try it with your own message.</p>
+      <div class="agent-chat" id="agent-chat"></div>
+      <div class="apply-to">
+        Apply to:
+        <button class="pill active" id="apply-slide-pill" type="button">Slide 1</button>
+        <button class="pill" id="apply-all-pill" type="button">Whole presentation</button>
+      </div>
+      <div class="agent-input-row">
+        <input type="text" id="agent-input" placeholder="Ask for a change to the presentation…" />
+        <button class="agent-send-btn" id="agent-send-btn" type="button" aria-label="Send">&uarr;</button>
+      </div>
+    </div>
+
+    <div class="side-tab-panel" id="tab-changes" hidden>
+      <p class="side-hint">Before/after diffs land here once a change is requested. Real approval/versioning (the Critic and change-request routing agents) isn't built yet — entries below are illustrative.</p>
+      <ul class="changes-list" id="changes-list"></ul>
+    </div>
+
+    <div class="side-tab-panel" id="tab-audit" hidden>
+      <p class="side-hint">Basic record details below — a full step-by-step audit trail (who changed what, when) isn't implemented yet.</p>
+      <ul class="audit-list" id="audit-list"></ul>
+    </div>
+  </div>
+</div>
+
+<script>
+const apiBaseInput = { value: localStorage.getItem('mc_api_base') || 'http://localhost:8081/api' };
+function apiBase() { return apiBaseInput.value.replace(/\/$/, ''); }
+
+const params = new URLSearchParams(window.location.search);
+const draftId = params.get('draftId');
+const el = (id) => document.getElementById(id);
+
+let record = null;
+let selectedIndex = 0;
+let applyTarget = 'slide'; // 'slide' | 'all' — visual only, no real agent to apply anything to yet
+
+// Known template slide titles (static — the template's structure doesn't
+// change per meeting). "filled" marks the ones builder.py actually
+// populates with real data for this customer.
+const SLIDES = [
+  { n: 1, title: 'Review & Outlook (cover)', kind: 'cover', filled: true },
+  { n: 2, title: 'SEASON REVIEW', kind: 'divider', filled: false },
+  { n: 3, title: 'The season in numbers', kind: 'table', filled: true },
+  { n: 4, title: 'Product review', kind: 'table+chart', filled: true },
+  { n: 5, title: 'Market segment — sales', kind: 'table', filled: true },
+  { n: 6, title: 'Market segment — share', kind: 'table', filled: false },
+  { n: 7, title: 'Market segment — deep dive', kind: 'table+chart', filled: true },
+  { n: 8, title: 'Link results to priority crops', kind: 'static', filled: false },
+  { n: 9, title: 'OUTLOOK', kind: 'divider', filled: false },
+  { n: 10, title: 'Your priorities', kind: 'static', filled: false },
+  { n: 11, title: 'Next-campaign opportunities', kind: 'static', filled: false },
+  { n: 12, title: 'Prepare for next campaign', kind: 'static', filled: false },
+  { n: 13, title: 'Decisions and next steps', kind: 'static', filled: false },
+  { n: 14, title: 'Closing', kind: 'divider', filled: false },
+  { n: 15, title: 'Appendix', kind: 'divider', filled: false },
+  { n: 16, title: 'Reference — visual format', kind: 'static', filled: false },
+];
+
+// Rail thumbnails render this exact same markup (same classes the real
+// .slide-preview uses) at a fixed reference size, then get visually shrunk
+// with a CSS transform — so the rail shows a genuine miniature of each
+// slide's real layout and title text, like a real PPT editor's slide panel,
+// not a simplified stand-in. THUMB_REF_WIDTH matches .slide-preview's own
+// max-width so fonts/padding/row-heights scale down exactly in proportion.
+const THUMB_REF_WIDTH = 1040;
+const THUMB_REF_HEIGHT = Math.round((THUMB_REF_WIDTH * 9) / 16);
+
+function renderSlideRail() {
+  el('slide-rail-header').textContent = `Slides · ${SLIDES.length}`;
+  const rail = el('slide-rail');
+  rail.innerHTML = '';
+  SLIDES.forEach((slide, i) => {
+    const item = document.createElement('div');
+    item.className = 'slide-item' + (i === selectedIndex ? ' selected' : '');
+    item.title = slide.title;
+    const { cls, html } = slideMarkup(slide);
+    item.innerHTML = `
+      <span class="num">${slide.n}</span>
+      <div class="slide-thumb-wrap">
+        <div class="slide-preview ${cls}" style="width:${THUMB_REF_WIDTH}px;height:${THUMB_REF_HEIGHT}px;">${html}</div>
+      </div>
+    `;
+    item.addEventListener('click', () => selectSlide(i));
+    rail.appendChild(item);
+  });
+  scaleThumbnails();
+}
+
+function scaleThumbnails() {
+  document.querySelectorAll('.slide-thumb-wrap').forEach((wrap) => {
+    const thumb = wrap.querySelector('.slide-preview');
+    if (!thumb || !wrap.clientWidth) return;
+    thumb.style.transform = `scale(${wrap.clientWidth / THUMB_REF_WIDTH})`;
+  });
+}
+window.addEventListener('resize', scaleThumbnails);
+
+function selectSlide(i) {
+  selectedIndex = Math.max(0, Math.min(SLIDES.length - 1, i));
+  renderSlideRail();
+  renderSlidePreview();
+  renderPagination();
+  updateApplySlidePill();
+}
+
+function renderPagination() {
+  el('pagination-label').textContent = `Slide ${selectedIndex + 1} of ${SLIDES.length}`;
+  el('prev-slide-btn').disabled = selectedIndex === 0;
+  el('next-slide-btn').disabled = selectedIndex === SLIDES.length - 1;
+}
+
+function wireframeRows(count, header) {
+  let html = '';
+  if (header) html += '<div class="wireframe-row header">' + '<div class="wireframe-cell"></div>'.repeat(4) + '</div>';
+  for (let r = 0; r < count; r++) html += '<div class="wireframe-row">' + '<div class="wireframe-cell"></div>'.repeat(4) + '</div>';
+  return html;
+}
+
+function wireframeBullets(widths) {
+  return '<ul class="wireframe-bullets">' + widths.map((w) =>
+    `<li><span class="dot"></span><span class="bar" style="width:${w}%"></span></li>`
+  ).join('') + '</ul>';
+}
+
+// Single source of truth for a slide's rendered content — used for BOTH the
+// main read-only preview and the rail thumbnails, so the thumbnail is a true
+// miniature of the real preview (same title text, same layout), not a
+// separately-maintained simplified version that can drift out of sync.
+function slideMarkup(slide) {
+  const customer = record?.customer_id || 'this customer';
+  const meetingDate = record?.meeting_date || '';
+
+  if (slide.kind === 'cover') {
+    return {
+      cls: 'cover',
+      html: `
+        <div class="cover-title">Business Review &amp; Outlook</div>
+        <div class="cover-subtitle">${customer}${meetingDate ? ' · ' + meetingDate : ''}</div>
+      `,
+      source: '',
+    };
+  }
+
+  if (slide.kind === 'divider') {
+    return { cls: 'divider', html: `<div class="divider-title">${slide.title}</div>`, source: '' };
+  }
+
+  if (slide.kind === 'table' || slide.kind === 'table+chart') {
+    return {
+      cls: 'content',
+      html: `
+        <div class="content-title">${slide.title}</div>
+        <div class="content-subtitle">${slide.filled ? 'Populated with real data for ' + customer : 'Data gap — not available, shown as a placeholder'}</div>
+        <div class="wireframe-table">${wireframeRows(4, true)}</div>
+        ${slide.kind === 'table+chart' ? '<div class="wireframe-chart"></div>' : ''}
+      `,
+      source: slide.filled
+        ? `Source: Databricks sales insight data, as of ${new Date().toISOString().slice(0, 10)}`
+        : 'No data source for this row — never fabricated',
+    };
+  }
+
+  return {
+    cls: 'content',
+    html: `
+      <div class="content-title">${slide.title}</div>
+      <div class="content-subtitle">Static — copied verbatim from the template</div>
+      ${wireframeBullets([88, 72, 60])}
+      <div class="static-note">No per-meeting data or agent involvement on this slide.</div>
+    `,
+    source: '',
+  };
+}
+
+function renderSlidePreview() {
+  const slide = SLIDES[selectedIndex];
+  const { cls, html, source } = slideMarkup(slide);
+  el('slide-preview').className = 'slide-preview ' + cls;
+  el('slide-preview').innerHTML = html;
+  el('slide-source').textContent = source;
+}
+
+function showError(message) {
+  const box = el('error-box');
+  box.textContent = message;
+  box.style.display = 'block';
+}
+
+function renderAudit() {
+  const list = el('audit-list');
+  if (!record) {
+    list.innerHTML = '<li class="audit-empty">No record loaded.</li>';
+    return;
+  }
+  const entries = [
+    { label: 'Draft created', value: record.id },
+    { label: 'Customer', value: record.customer_id || '—' },
+    { label: 'Meeting date', value: record.meeting_date || '—' },
+    { label: 'Distributor profile', value: record.distributor_profile || 'Not determined / not provided' },
+    { label: 'Status', value: record.status },
+  ];
+  list.innerHTML = entries.map((e) => `<li><span class="audit-label">${e.label}</span>${e.value}</li>`).join('');
+}
+
+function renderChangesEmpty() {
+  el('changes-list').innerHTML = '<li class="changes-empty" style="border:none;">No changes requested yet.</li>';
+}
+
+async function loadDraft() {
+  if (!draftId) {
+    showError('No draftId in the URL — go back and confirm a meeting context first.');
+    return;
+  }
+  try {
+    const resp = await fetch(`${apiBase()}/meeting-context/${draftId}`);
+    if (!resp.ok) throw new Error('Could not load draft (' + resp.status + ')');
+    record = await resp.json();
+    el('customer-name').textContent = record.customer_id || '—';
+    renderAudit();
+    renderSlidePreview();
+    if (record.status !== 'confirmed') {
+      showError('This meeting context is not confirmed yet — go back and click "Confirm & Next".');
+      return;
+    }
+    el('download-btn').disabled = false;
+  } catch (e) {
+    showError(e.message);
+  }
+}
+
+el('download-btn').addEventListener('click', async () => {
+  const btn = el('download-btn');
+  btn.disabled = true;
+  btn.textContent = 'Generating…';
+  try {
+    const resp = await fetch(`${apiBase()}/meeting-context/${draftId}/deck`);
+    if (!resp.ok) throw new Error('Deck generation failed (' + resp.status + ')');
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (el('customer-name').textContent || 'deck') + '-business-review.pptx';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } catch (e) {
+    showError(e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Download PPT';
+  }
+});
+
+el('prev-slide-btn').addEventListener('click', () => selectSlide(selectedIndex - 1));
+el('next-slide-btn').addEventListener('click', () => selectSlide(selectedIndex + 1));
+
+for (const tab of document.querySelectorAll('.side-tab')) {
+  tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+}
+function switchTab(name) {
+  for (const t of document.querySelectorAll('.side-tab')) t.classList.toggle('active', t.dataset.tab === name);
+  for (const p of document.querySelectorAll('.side-tab-panel')) p.hidden = true;
+  el('tab-' + name).hidden = false;
+}
+
+function updateApplySlidePill() {
+  el('apply-slide-pill').textContent = `Slide ${selectedIndex + 1}`;
+}
+el('apply-slide-pill').addEventListener('click', () => {
+  applyTarget = 'slide';
+  el('apply-slide-pill').classList.add('active');
+  el('apply-all-pill').classList.remove('active');
+});
+el('apply-all-pill').addEventListener('click', () => {
+  applyTarget = 'all';
+  el('apply-all-pill').classList.add('active');
+  el('apply-slide-pill').classList.remove('active');
+});
+
+function addChatBubble(kind, html) {
+  const chat = el('agent-chat');
+  const bubble = document.createElement('div');
+  bubble.className = 'chat-bubble ' + kind;
+  bubble.innerHTML = html;
+  chat.appendChild(bubble);
+  chat.scrollTop = chat.scrollHeight;
+  return bubble;
+}
+
+// Mock only — no real agent/Critic/Slide Generator is called. Clearly
+// labeled in the panel's own hint text, and the reply always says so
+// explicitly, so this can never be mistaken for a live response (same
+// honesty rule this project applies to deck numbers — never show something
+// fabricated-looking as if it were real).
+el('agent-send-btn').addEventListener('click', () => {
+  const input = el('agent-input');
+  const message = input.value.trim();
+  if (!message) return;
+
+  addChatBubble('user', message.replace(/</g, '&lt;'));
+
+  const targetSlide = SLIDES[selectedIndex];
+  const targetLabel = applyTarget === 'all' ? 'the whole presentation' : `slide ${selectedIndex + 1} ("${targetSlide.title}")`;
+  addChatBubble('agent', `
+    Not implemented yet — this would route to the Slide Generator / Critic agents once built.
+    Example of what a reply might look like for a change to ${targetLabel}:
+    <div class="diff-box">
+      <span class="diff-old">${targetSlide.title}</span>
+      <span class="diff-new">${targetSlide.title} (updated)</span>
+    </div>
+    <div class="chat-links">
+      <a id="go-to-slide-link">Go to slide ${selectedIndex + 1}</a>
+      <a id="view-changes-link">View changes</a>
+    </div>
+  `);
+
+  const goLink = document.getElementById('go-to-slide-link');
+  if (goLink) goLink.addEventListener('click', () => selectSlide(selectedIndex));
+  const viewLink = document.getElementById('view-changes-link');
+  if (viewLink) {
+    viewLink.addEventListener('click', () => {
+      switchTab('changes');
+      el('changes-list').innerHTML = `
+        <li>
+          <div class="changes-slide">Slide ${selectedIndex + 1} — ${targetSlide.title}</div>
+          <div>Requested: "${message.replace(/</g, '&lt;')}"</div>
+          <div class="side-hint" style="margin:6px 0 0;">Example only — no real change-request agent exists yet.</div>
+        </li>
+      `;
+    });
+  }
+
+  input.value = '';
+});
+el('agent-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') el('agent-send-btn').click();
+});
+
+renderSlideRail();
+renderSlidePreview();
+renderPagination();
+updateApplySlidePill();
+renderChangesEmpty();
+loadDraft();
+</script>
+</body>
+</html>
