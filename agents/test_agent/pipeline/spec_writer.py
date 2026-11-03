@@ -16,24 +16,35 @@ from pipeline.models import (
     ChartValueSpec,
     DeckPlan,
     DeckSpec,
+    NarrativeSlideSpec,
     SlideContentSpec,
     SlideSpec,
 )
+from pipeline.narrative_renderer import NARRATIVE_SLIDE_TEMPLATE_INDEX
 
 # 0-indexed template slide positions for the slide types that get filled
 # (not cloned-and-paginated) — product/segment pages reference these same
-# indices as their clone source.
+# indices as their clone source. Offsets updated 2026-10-30 for the RCR
+# template (23 slides) — each is +6 vs. the older 16-slide template, since
+# the Commercial Intelligence Brief divider + 5 narrative slides were
+# inserted right after the cover.
 TEMPLATE_SLIDE = {
     "cover": 0,
-    "kpi": 2,
-    "product_page": 3,
-    "segment_sales_page": 4,
-    "segment_share_page": 5,
-    "deepdive": 6,
+    "kpi": 8,
+    "product_page": 9,
+    "segment_sales_page": 10,
+    "segment_share_page": 11,
+    "deepdive": 12,
 }
 
 
-def write_deck_spec(plan: DeckPlan, facts: CustomerFacts, customer_fact_id: str, meeting_date_fact_id: str) -> DeckSpec:
+def write_deck_spec(
+    plan: DeckPlan,
+    facts: CustomerFacts,
+    customer_fact_id: str,
+    meeting_date_fact_id: str,
+    narrative_slides: dict[str, NarrativeSlideSpec],
+) -> DeckSpec:
     slide_specs: list[SlideContentSpec] = []
     for spec in plan.slides:
         if spec.slide_type == "cover":
@@ -42,6 +53,8 @@ def write_deck_spec(plan: DeckPlan, facts: CustomerFacts, customer_fact_id: str,
             slide_specs.append(
                 SlideContentSpec(section=spec.section, slide_type="static", source_slide_index=spec.data_scope["template_slide"])
             )
+        elif spec.slide_type == "narrative":
+            slide_specs.append(_narrative_spec(spec, narrative_slides))
         elif spec.slide_type == "kpi":
             slide_specs.append(_kpi_spec(facts))
         elif spec.slide_type == "product_page":
@@ -55,6 +68,16 @@ def write_deck_spec(plan: DeckPlan, facts: CustomerFacts, customer_fact_id: str,
         else:
             raise ValueError(f"Unknown slide_type: {spec.slide_type}")
     return DeckSpec(slides=slide_specs)
+
+
+def _narrative_spec(spec: SlideSpec, narrative_slides: dict[str, NarrativeSlideSpec]) -> SlideContentSpec:
+    slide_key: str = spec.data_scope["slide_key"]
+    return SlideContentSpec(
+        section=spec.section,
+        slide_type="narrative",
+        source_slide_index=NARRATIVE_SLIDE_TEMPLATE_INDEX[slide_key],
+        narrative_spec=narrative_slides[slide_key],
+    )
 
 
 def _cover_spec(customer_fact_id: str, meeting_date_fact_id: str) -> SlideContentSpec:

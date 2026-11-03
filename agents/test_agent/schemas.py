@@ -9,7 +9,9 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from mock_data import REGIONS
 
 REQUIRED_FIELDS = [
     "customer_id",
@@ -47,6 +49,16 @@ class MeetingContextDraft(BaseModel):
     the dynamic section's computed classification, or None (not answered, or
     "cannot be determined" — in which case, per the spec, the dynamic
     section's answers are left out of the generated deck).
+
+    `location` and `region` (added 2026-11-02, "Set the Region" story) feed
+    the hook generation for the meeting slide deck. `location` is read-only
+    from the rep's point of view — like `distributor_profile`, it is NEVER
+    trusted as given by a client directly; context_api.py always overwrites
+    it with data_access.get_customer_location(customer_id) on every save (see
+    that function's docstring: no real "State on the Customer Account" source
+    is connected yet, so this currently always comes back None). `region` is
+    a multi-select from a fixed, closed set (see mock_data.REGIONS) — neither
+    field is in REQUIRED_FIELDS.
     """
 
     customer_id: Optional[str] = None
@@ -55,7 +67,8 @@ class MeetingContextDraft(BaseModel):
     duration_minutes: Optional[int] = None
     season: Optional[str] = None
     campaign: Optional[str] = None
-    location: Optional[str] = None
+    location: Optional[str] = None  # read-only — see class docstring
+    region: list[str] = Field(default_factory=list)
     objectives: Optional[str] = None
     hook: Optional[str] = None
     focus_products: list[str] = Field(default_factory=list)
@@ -64,6 +77,14 @@ class MeetingContextDraft(BaseModel):
     distributor_profile: Optional[str] = None
     pressure_scores: dict[str, int] = Field(default_factory=dict)
     partnership_scores: dict[str, int] = Field(default_factory=dict)
+
+    @field_validator("region")
+    @classmethod
+    def _validate_region(cls, value: list[str]) -> list[str]:
+        invalid = [v for v in value if v not in REGIONS]
+        if invalid:
+            raise ValueError(f"invalid region(s) {invalid!r}; allowed: {REGIONS}")
+        return value
 
 
 class MeetingContextRecord(MeetingContextDraft):

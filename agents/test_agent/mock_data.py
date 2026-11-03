@@ -7,6 +7,13 @@ against the dbx-data sample until a real Databricks MCP tool exists). Only
 genuinely static things remain here: meeting type and location ("could be
 static for now", per the user) — neither has a data-source question
 attached yet.
+
+REGIONS (added 2026-11-02, "Set the Region" story) is a fixed, closed set —
+not a data-source question either: it's the sales-territory breakdown the
+rep picks from (distinct from LOCATIONS, which is the detailed French
+administrative region and is no longer user-selected — see
+data_access.get_customer_location's docstring for why Location is read-only
+now instead).
 """
 
 from __future__ import annotations
@@ -40,4 +47,14 @@ LOCATIONS: list[str] = [
     "Occitanie",
     "Auvergne-Rhône-Alpes",
     "Provence-Alpes-Côte d'Azur",
+]
+
+# Exactly these five, per the "Set the Region" story — a multi-select, not a
+# single pick (a rep's territory can span more than one).
+REGIONS: list[str] = [
+    "EST",
+    "NORD",
+    "OUEST",
+    "SUD EST",
+    "SUD OUEST",
 ]

@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Test Agent — Chat</title>
+<style>
+  :root {
+    --bg: #212121;
+    --bg-user: #2f2f2f;
+    --bg-assistant: #212121;
+    --text: #ececec;
+    --muted: #8e8ea0;
+    --border: #3a3a3a;
+    --accent: #10a37f;
+    --error: #ef4444;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  #app {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    gap: 8px;
+  }
+  header h1 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0;
+    color: var(--text);
+  }
+  header .status {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  #settings {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  #settings input {
+    background: var(--bg-user);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-size: 12px;
+    width: 260px;
+  }
+  #settings button {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  #settings button:hover { color: var(--text); border-color: var(--muted); }
+
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0 24px;
+  }
+  .msg {
+    display: flex;
+    gap: 14px;
+    padding: 18px max(16px, calc(50% - 360px));
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+  .msg.user { background: var(--bg-user); }
+  .msg.assistant { background: var(--bg-assistant); }
+  .msg.system { opacity: 0.7; font-style: italic; }
+  .avatar {
+    flex: 0 0 28px;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+  }
+  .msg.user .avatar { background: #5b5b5b; }
+  .msg.assistant .avatar { background: var(--accent); }
+  .msg.system .avatar { background: var(--error); }
+  .bubble {
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.55;
+    font-size: 15px;
+    padding-top: 2px;
+  }
+  .bubble .tool-call {
+    display: block;
+    margin: 6px 0;
+    padding: 6px 10px;
+    font-size: 12px;
+    color: var(--muted);
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+  }
+  .cursor {
+    display: inline-block;
+    width: 7px;
+    height: 1em;
+    background: var(--text);
+    vertical-align: text-bottom;
+    margin-left: 2px;
+    animation: blink 1s step-start infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  #composer {
+    border-top: 1px solid var(--border);
+    padding: 14px max(16px, calc(50% - 360px)) 20px;
+  }
+  #composer form {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    background: var(--bg-user);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 10px 10px 10px 16px;
+  }
+  #input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    resize: none;
+    color: var(--text);
+    font-size: 15px;
+    font-family: inherit;
+    max-height: 200px;
+    line-height: 1.4;
+  }
+  #send {
+    background: var(--text);
+    color: #111;
+    border: none;
+    border-radius: 10px;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #send:disabled { opacity: 0.35; cursor: default; }
+  #send:hover:not(:disabled) { opacity: 0.85; }
+  .hint {
+    text-align: center;
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 8px;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Test Agent</h1>
+    <div id="settings">
+      <span class="status" id="status">idle</span>
+      <input id="endpoint" type="text" spellcheck="false" />
+      <button id="reset">New chat</button>
+    </div>
+  </header>
+
+  <div id="messages"></div>
+
+  <div id="composer">
+    <form id="form">
+      <textarea id="input" rows="1" placeholder="Message Test Agent..."></textarea>
+      <button id="send" type="submit" title="Send">&uarr;</button>
+    </form>
+    <div class="hint">Sends RunAgentInput to the AG-UI /invocations endpoint and streams the SSE response.</div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const messagesEl = document.getElementById("messages");
+  const form = document.getElementById("form");
+  const input = document.getElementById("input");
+  const sendBtn = document.getElementById("send");
+  const endpointEl = document.getElementById("endpoint");
+  const statusEl = document.getElementById("status");
+  const resetBtn = document.getElementById("reset");
+
+  const DEFAULT_ENDPOINT = "http://localhost:8081/invocations";
+  endpointEl.value = localStorage.getItem("agui_endpoint") || DEFAULT_ENDPOINT;
+  endpointEl.addEventListener("change", () => {
+    localStorage.setItem("agui_endpoint", endpointEl.value.trim());
+  });
+
+  let threadId = crypto.randomUUID();
+  let history = []; // {id, role, content}
+  let streaming = false;
+
+  function uuid() { return crypto.randomUUID(); }
+
+  function addMessageEl(role, text) {
+    const row = document.createElement("div");
+    row.className = "msg " + role;
+    const avatar = document.createElement("div");
+    avatar.className = "avatar";
+    avatar.textContent = role === "user" ? "U" : role === "system" ? "!" : "A";
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.textContent = text || "";
+    row.appendChild(avatar);
+    row.appendChild(bubble);
+    messagesEl.appendChild(row);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    return bubble;
+  }
+
+  function autoresize() {
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 200) + "px";
+  }
+  input.addEventListener("input", autoresize);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      form.requestSubmit();
+    }
+  });
+
+  resetBtn.addEventListener("click", () => {
+    if (streaming) return;
+    threadId = crypto.randomUUID();
+    history = [];
+    messagesEl.innerHTML = "";
+  });
+
+  function setStreaming(on) {
+    streaming = on;
+    sendBtn.disabled = on;
+    input.disabled = on;
+    statusEl.textContent = on ? "thinking…" : "idle";
+  }
+
+  async function sendMessage(text) {
+    const userId = uuid();
+    history.push({ id: userId, role: "user", content: text });
+    addMessageEl("user", text);
+
+    const payload = {
+      threadId,
+      runId: uuid(),
+      messages: history.map((m) => ({ id: m.id, role: m.role, content: m.content })),
+      tools: [],
+      context: [],
+      forwardedProps: {},
+    };
+
+    setStreaming(true);
+
+    // messageId -> { bubble, text }
+    const assistantByMsgId = new Map();
+    let activeToolCalls = new Map(); // toolCallId -> element
+
+    try {
+      const resp = await fetch(endpointEl.value.trim(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!resp.ok || !resp.body) {
+        const errText = await resp.text().catch(() => "");
+        addMessageEl("system", `Request failed (${resp.status}): ${errText || resp.statusText}`);
+        setStreaming(false);
+        return;
+      }
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop(); // last chunk may be incomplete
+
+        for (const part of parts) {
+          const line = part.split("\n").find((l) => l.startsWith("data:"));
+          if (!line) continue;
+          const jsonStr = line.slice(5).trim();
+          if (!jsonStr) continue;
+
+          let evt;
+          try {
+            evt = JSON.parse(jsonStr);
+          } catch {
+            continue;
+          }
+
+          switch (evt.type) {
+            case "TEXT_MESSAGE_START": {
+              const bubble = addMessageEl("assistant", "");
+              assistantByMsgId.set(evt.messageId, { bubble, text: "" });
+              break;
+            }
+            case "TEXT_MESSAGE_CONTENT": {
+              let entry = assistantByMsgId.get(evt.messageId);
+              if (!entry) {
+                const bubble = addMessageEl("assistant", "");
+                entry = { bubble, text: "" };
+                assistantByMsgId.set(evt.messageId, entry);
+              }
+              entry.text += evt.delta || "";
+              entry.bubble.textContent = entry.text;
+              messagesEl.scrollTop = messagesEl.scrollHeight;
+              break;
+            }
+            case "TEXT_MESSAGE_END": {
+              const entry = assistantByMsgId.get(evt.messageId);
+              if (entry) {
+                history.push({ id: evt.messageId, role: "assistant", content: entry.text });
+              }
+              break;
+            }
+            case "TOOL_CALL_START": {
+              const el = document.createElement("span");
+              el.className = "tool-call";
+              el.textContent = `🔧 calling ${evt.toolCallName || "tool"}…`;
+              messagesEl.lastElementChild?.querySelector(".bubble")?.appendChild(el);
+              activeToolCalls.set(evt.toolCallId, el);
+              break;
+            }
+            case "TOOL_CALL_END": {
+              const el = activeToolCalls.get(evt.toolCallId);
+              if (el) el.textContent = el.textContent.replace("…", " ✓");
+              break;
+            }
+            case "RUN_ERROR": {
+              addMessageEl("system", `Error: ${evt.message || "unknown error"}`);
+              break;
+            }
+            case "RUN_FINISHED": {
+              break;
+            }
+            default:
+              break; // ignore other event types for this basic UI
+          }
+        }
+      }
+    } catch (err) {
+      addMessageEl("system", `Connection error: ${err.message}. If this is a CORS error, set CORS_ORIGINS in the agent's .env (see chat-ui/README).`);
+    } finally {
+      setStreaming(false);
+    }
+  }
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text || streaming) return;
+    input.value = "";
+    autoresize();
+    sendMessage(text);
+  });
+})();
+</script>
+</body>
+</html>

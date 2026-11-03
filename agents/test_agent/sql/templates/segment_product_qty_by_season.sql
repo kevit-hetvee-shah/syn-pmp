@@ -1,8 +1,8 @@
 -- id: segment_product_qty_by_season
 -- description: Quantity ordered per product per season, for one customer+segment — feeds slide 7's deep-dive table and column chart
 -- kind: table
--- param: customer string [A-Za-z0-9,.'&()/\s-]+
--- param: segment string [A-Za-z0-9,.'&()/\s-]+
+-- param: customer string [\w,.'&()/\s-]+
+-- param: segment string [\w,.'&()/\s-]+
 SELECT
     tradename_en AS product,
     season,

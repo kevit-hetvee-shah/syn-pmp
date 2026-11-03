@@ -1,0 +1,126 @@
+column_name,data_type,comment,tag_name,tag_value
+source,STRING,"Source system identifier (SAP, DataPro, Salesforce)",null,null
+main_key,STRING,Composite primary key for the sales record,pk,unique
+key_campaign_sku,STRING,Unique composite key combining campaign and SKU,null,null
+campaign,STRING,Sales campaign identifier,conformed_dim,campaign
+order_document_date,DATE,Sales order document creation date,conformed_dim,order_document_date
+autumn_spring,STRING,Season type indicator (Autumn/Spring),null,null
+season_start_date,DATE,Sales season start date,conformed_dim,season_start_date
+season_end_date,DATE,Sales season end date,conformed_dim,season_end_date
+season,STRING,Sales season identifier,null,null
+order_factid,STRING,Unique order fact identifier,null,null
+order_delivery_date,DATE,Actual delivery date,conformed_dim,order_delivery_date
+requested_delivery_date,DATE,Customer requested delivery date,conformed_dim,requested_delivery_date
+ship_to_gsap_id,STRING,Ship-to party GSAP customer ID,null,null
+ship_to_gsap_cid,STRING,Ship-to party GSAP customer CID,conformed_dim,ship_to_gsap_cid
+sold_to_gsap_id,STRING,Sold-to party GSAP customer ID,null,null
+sales_order_document_number,STRING,SAP sales order document number,null,null
+customer_purchase_order_number,STRING,Customer PO reference number,null,null
+sales_order_item_number,DECIMAL,Sales order line item number,null,null
+order_type,STRING,Sales order type code,null,null
+order_type_description,STRING,Sales order type description,null,null
+order_status,STRING,Current order status,null,null
+material_id,STRING,SAP material master identifier,conformed_dim,material_id
+order_creation_date,DATE,Order creation date in source system,conformed_dim,order_creation_date
+sales_uom,STRING,Sales unit of measure,null,null
+order_reason_cid,STRING,Order reason code identifier,null,null
+flag,STRING,Special processing or status flag,null,null
+customer_order_qty_suom,DECIMAL,Customer ordered quantity in sales UOM,null,null
+customer_order_value,DOUBLE,Customer order value in document currency,null,null
+customer_deliver_qty_suom,DECIMAL,Customer delivered quantity in sales UOM,null,null
+customer_invoiced_qty_suom,DOUBLE,Customer invoiced quantity in sales UOM,null,null
+customer_invoiced_value,DOUBLE,Customer invoiced value in document currency,null,null
+customer_order_value_fr_st1mem,DOUBLE,Customer order value calculated as customer_order_qty_suom multiplied by ST1 MeM Price.,null,null
+customer_invoiced_value_fr_st1mem,DOUBLE,Customer invoiced value calculated as customer_invoiced_qty_suom multiplied by ST1 MeM Price.,null,null
+thirdparty_order_qty_suom,DECIMAL,Third-party ordered quantity in sales UOM,null,null
+thirdparty_order_value,DOUBLE,Third-party order value in document currency,null,null
+thirdparty_delivery_qty_suom,DECIMAL,Third-party delivered quantity in sales UOM,null,null
+third_party_invoiced_suom,DOUBLE,Third-party invoiced quantity in sales UOM,null,null
+third_party_invoiced_value,DOUBLE,Third-party invoiced value in document currency,null,null
+total_buom,DECIMAL,Total quantity in base UOM,null,null
+cumulative_confirmed_quantity_in_sales_uom,DECIMAL,Total confirmed quantity in sales UOM,null,null
+SAP_order_qty_suom,DECIMAL,SAP system ordered quantity in sales UOM,null,null
+SAP_order_value,DOUBLE,SAP system order value in document currency,null,null
+planned_loading_date,DATE,Planned goods loading date,null,null
+sales_org_cde,STRING,Sales organization code (0110=France),conformed_dim,sales_org_cde
+marketer_bp_role,STRING,Marketer business partner role code,null,null
+marketer_bp_code,STRING,Marketer business partner code,null,null
+marketer_bp_cid,STRING,Marketer business partner CID,conformed_dim,marketer_bp_cid
+order_partner_cid,STRING,Order partner CID,conformed_dim,order_partner_cid
+sch_max_schedule_line_date,DATE,Latest schedule line delivery date,null,null
+sch_max_planned_goods_issue_date,DATE,Latest planned goods issue date from schedule,null,null
+count_of_schedule_lines,LONG,Number of schedule lines per order item,null,null
+order_reason,STRING,Order reason code,null,null
+order_reason_description,STRING,Order reason text description,null,null
+del_max_delivery_date,DATE,Latest delivery document date,null,null
+actual_max_goods_issue_date,DATE,Latest actual goods issue date,null,null
+SAP_delivery_qty_suom,DECIMAL,SAP system delivered quantity in sales UOM,null,null
+count_of_deliveries,LONG,Number of delivery documents per order item,null,null
+last_billing_document_number,LONG,Most recent billing/invoice document number,null,null
+count_of_billing_document_number,LONG,Number of billing documents per order item,null,null
+SAP_invoiced_qty_suom,DOUBLE,SAP system total invoiced quantity in sales UOM,null,null
+SAP_invoiced_value,DOUBLE,SAP system total invoiced value in document currency,null,null
+count_of_invoices,LONG,Number of invoice documents per order item,null,null
+max_billing_date,DATE,Latest billing/invoice date,null,null
+sp_price_id,STRING,Special pricing identifier,null,null
+productline_seller_description,STRING,Product line seller description,null,null
+seller_business_area_description,STRING,Seller business area description,null,null
+tradename_en,STRING,Product trade name in English,null,null
+material_description,STRING,Material description from global master data,null,null
+product_line_group,STRING,Product line group,null,null
+uc_leadai_family_name,STRING,Lead active ingredient family name,null,null
+product_category,STRING,"Product category (UC=Unpacked Chemical, SubUC, NSU=Non-Standard Unit, SU=Standard Unit, PU=Packed Unit)",null,null
+uc_material_number,STRING,Unpacked chemical material number (AGI code),null,null
+anz_total_shipper_quantity,DOUBLE,Total shipper quantity for ANZ region,null,null
+composition,STRING,material composition,null,null
+danger_class_fr,STRING,hazard severity classification,null,null
+danger_rank_fr,STRING,hazard severity ranking,null,null
+formulation_code,STRING,code describing the product formulation type,null,null
+ingredients_fr,STRING,list of declared ingredients/substances,null,null
+market_authorization_no_fr,STRING,product marketing authorization identifier,null,null
+palette_capacity_fr,DOUBLE,number of units/cases per pallet,null,null
+rpd,DOUBLE,French RPD (Fee for Diffuse pollution) levy (cost per unit),null,null
+warning_rank_fr,STRING,warning criticality score rank,null,null
+base_uom,STRING,Base unit of measure from material master,null,null
+is_combipack_flag,BOOLEAN,Indicates if product is a combipack,null,null
+datapro_campaign,STRING,Campaign/season identifier from DataPro system,null,null
+datapro_ean13,STRING,EAN13 barcode from DataPro system,null,null
+france_sms_fr,STRING,France-specific SMS classification,null,null
+sub_sms,STRING,Sub-segment management classification,null,null
+datapro_material_id,STRING,Default product code from DataPro system,null,null
+product_name,STRING,Product name,null,null
+sfdc_material_id,STRING,Salesforce material identifier,null,null
+id_product_datapro_fr,STRING,DataPro France product identifier,null,null
+country_code,STRING,Country code (FR=France),conformed_dim,country_code
+ship_to_or_marketer_gsap_id,STRING,GSAP ID for ship-to party or marketer,null,null
+ship_to_or_marketer_sfdc_id,STRING,Salesforce account ID for ship-to party or marketer,null,null
+ship_to_or_marketer_name,STRING,Ship-to party or marketer name (PII masked),encrypted,ecb
+customer_sfdc_id,STRING,Salesforce customer account ID (18-character),null,null
+customer_name,STRING,Customer full name (PII masked),encrypted,ecb
+national_purchasing_group_id,STRING,National purchasing group identifier,null,null
+national_purchasing_group,STRING,National purchasing group name (PII masked),encrypted,ecb
+national_purchasing_group_distance,INT,Hierarchy distance to national purchasing group,null,null
+regional_purchasing_group_id,STRING,Regional purchasing group identifier,null,null
+regional_purchasing_group,STRING,Regional purchasing group name (PII masked),encrypted,ecb
+regional_purchasing_group_distance,INT,Hierarchy distance to regional purchasing group,null,null
+thirdparty_purchasing_group,STRING,Third-party purchasing group name (PII masked),encrypted,ecb
+thirdparty_purchasing_group_id,STRING,Third-party purchasing group identifier,null,null
+source_3p_purchasing_id,STRING,Source system third-party purchasing identifier,null,null
+account_country,STRING,Customer account country code,null,null
+account_type,STRING,"Salesforce account type (Customer, Distributor, Retailer, etc.)",null,null
+account_type_france,STRING,France-specific account type classification,null,null
+account_sub_type_france,STRING,France-specific account sub-type classification,null,null
+account_level_france,STRING,France-specific account hierarchy level (pre-populated by backend),null,null
+account_city,STRING,Customer account city,null,null
+mail_to_postal,STRING,Mailing postal code,null,null
+owner_id,STRING,Salesforce account owner user ID,null,null
+grouping_account,STRING,Account grouping/hierarchy classification,null,null
+fr_main_account,STRING,France main account identifier,null,null
+top_accountnr_ru,STRING,Top-level parent account number,null,null
+account_owner_firstlast_name,STRING,Account owner full name,null,null
+account_owner_id,STRING,Account owner identifier,null,null
+billing_address_internal,STRING,Internal billing address reference,null,null
+shipping_address_internal,STRING,Internal shipping address reference,null,null
+sys_update_date_time_utc,TIMESTAMP,Last system update timestamp (UTC),conformed_dim,sys_update_date_time_utc
+sys_create_date_time_utc,TIMESTAMP,Record creation timestamp (UTC),conformed_dim,sys_create_date_time_utc
+sys_delete_flag,BOOLEAN,Soft delete indicator (TRUE=deleted),conformed_dim,sys_delete_flag

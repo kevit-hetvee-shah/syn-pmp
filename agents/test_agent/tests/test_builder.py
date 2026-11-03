@@ -9,7 +9,7 @@ from pptx import Presentation
 from builder import build_client_deck
 from pipeline.renderer import TEMPLATE_PATH
 
-STATIC_TAIL_LENGTH = 8  # qualitative review + OUTLOOK divider..reference slide — always the deck's last 8 slides
+STATIC_TAIL_LENGTH = 9  # OUTLOOK divider..reference..Classification slide — always the deck's last 9 slides (RCR template)
 
 
 def test_build_client_deck_produces_a_valid_pptx_with_real_numbers() -> None:
@@ -30,7 +30,7 @@ def test_build_client_deck_produces_a_valid_pptx_with_real_numbers() -> None:
 def test_kpi_table_has_real_revenue_not_placeholder_brackets() -> None:
     data = build_client_deck("ACTURA", "12 Nov 2026")
     prs = Presentation(io.BytesIO(data))
-    slide3 = list(prs.slides)[2]
+    slide3 = list(prs.slides)[8]  # RCR template: KPI table is 6 slides later (Commercial Intelligence Brief section)
     table = next(shape.table for shape in slide3.shapes if shape.has_table)
     revenue_row = [cell.text for cell in table.rows[1].cells]
     assert "[CA €]" not in revenue_row  # placeholder gone
@@ -41,7 +41,7 @@ def test_market_share_rows_stay_as_gap_placeholders() -> None:
     """Market share has no data source — must not be fabricated."""
     data = build_client_deck("ACTURA", "12 Nov 2026")
     prs = Presentation(io.BytesIO(data))
-    slide3 = list(prs.slides)[2]
+    slide3 = list(prs.slides)[8]
     table = next(shape.table for shape in slide3.shapes if shape.has_table)
     assert table.rows[2].cells[1].text == "[%]"
     assert table.rows[3].cells[1].text == "[%]"
@@ -50,7 +50,7 @@ def test_market_share_rows_stay_as_gap_placeholders() -> None:
 def test_product_table_filled_with_at_least_one_real_product() -> None:
     data = build_client_deck("ACTURA", "12 Nov 2026")
     prs = Presentation(io.BytesIO(data))
-    slide4 = list(prs.slides)[3]
+    slide4 = list(prs.slides)[9]  # RCR template: product review is 6 slides later
     table = next(shape.table for shape in slide4.shapes if shape.has_table)
     first_product_row = [cell.text for cell in table.rows[1].cells]
     assert first_product_row[0] not in ("PRODUIT A", "")
@@ -62,7 +62,7 @@ def test_no_placeholder_rows_left_beyond_real_data() -> None:
     "PRODUIT F".."I" rows padded in."""
     data = build_client_deck("ACTURA", "12 Nov 2026")
     prs = Presentation(io.BytesIO(data))
-    slide4 = list(prs.slides)[3]
+    slide4 = list(prs.slides)[9]  # RCR template: product review is 6 slides later
     table = next(shape.table for shape in slide4.shapes if shape.has_table)
     product_names = [table.rows[i].cells[0].text for i in range(1, len(table.rows))]
     assert not any(name.startswith("PRODUIT ") for name in product_names)
@@ -76,7 +76,7 @@ def test_all_market_segments_are_covered_across_pages_with_total_on_the_last() -
     prs = Presentation(io.BytesIO(data))
     slides = list(prs.slides)
 
-    kpi_table = next(s.table for s in slides[2].shapes if s.has_table)
+    kpi_table = next(s.table for s in slides[8].shapes if s.has_table)
     expected_total = [c.text for c in kpi_table.rows[1].cells][1:4]
 
     segment_names: list[str] = []

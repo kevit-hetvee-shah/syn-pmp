@@ -13,7 +13,8 @@ dependencies = [
     "opentelemetry-exporter-otlp-proto-http",
     "fastapi",
     "python-pptx",
-    "databricks-sql-connector",
+    "databricks-sdk",
+    "pydantic",
 ]
 
 [project.optional-dependencies]

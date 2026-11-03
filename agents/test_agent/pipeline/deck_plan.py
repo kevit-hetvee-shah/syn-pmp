@@ -32,8 +32,13 @@ PRODUCTS_PER_PAGE = 9  # Slide 4 table: header + "PRODUIT A".."PRODUIT I"
 SEGMENTS_PER_PAGE = 6  # Slides 5 & 6 table: header + 6 segment rows + TOTAL
 PRODUCTS_PER_DEEPDIVE = 7  # Slide 7 pattern: one repeat per segment, "Produit A".."G"
 
-FIXED_DYNAMIC_SLIDES = 3  # Slide 1 (cover), 2 (Season Review divider), 8 (qualitative review)
-STATIC_SLIDES = 8  # Slides 9-16, verbatim from the template, zero DB/agent involvement
+# Updated 2026-10-30 for the RCR template (23 slides, supersedes the older
+# 16-slide template as the live one — see pipeline/renderer.TEMPLATE_PATH):
+# it adds a "Commercial Intelligence Brief" divider + 5 narrative slides
+# right after the cover, and a trailing "Classification" slide at the end.
+FIXED_DYNAMIC_SLIDES = 4  # cover, Commercial Intelligence Brief divider, Season Review divider, qualitative review
+NARRATIVE_SLIDES = 5  # the Commercial Intelligence Brief's 5 agent-generated slides — fixed count, never paginated, real per-meeting content (not static, not a repeat pattern)
+STATIC_SLIDES = 9  # trailing OUTLOOK divider .. appendix .. reference .. Classification slide, verbatim from the template
 
 # Client-facing deck target confirmed 2026-10-29. Supersedes the earlier
 # duration-based ~40/45-slide figure for THIS deck specifically — the
@@ -95,7 +100,12 @@ def compute_slide_plan(
             )
 
     total_for_full_coverage = (
-        FIXED_DYNAMIC_SLIDES + STATIC_SLIDES + product_review_pages + segment_review_slides + deepdive_slides
+        FIXED_DYNAMIC_SLIDES
+        + NARRATIVE_SLIDES
+        + STATIC_SLIDES
+        + product_review_pages
+        + segment_review_slides
+        + deepdive_slides
     )
     overage = total_for_full_coverage - target_total_slides
     over_budget = overage > 0

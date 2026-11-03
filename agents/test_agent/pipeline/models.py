@@ -168,6 +168,11 @@ class SlideContentSpec:
     text_replacements: Optional[dict[str, str]] = None  # token -> fact_id, for non-table text (e.g. cover slide)
     target_row_count: Optional[int] = None  # DATA rows only — never includes the footer
     keep_footer: bool = False  # True only for a segment page's last instance (the TOTAL row)
+    # Only set when slide_type == "narrative" — a free-form block stack (see
+    # NarrativeSlideSpec below) instead of the fixed cells/chart shape every
+    # other slide_type uses. Forward-referenced because NarrativeSlideSpec is
+    # defined later in this file; safe under `from __future__ import annotations`.
+    narrative_spec: Optional["NarrativeSlideSpec"] = None
 
 
 @dataclass

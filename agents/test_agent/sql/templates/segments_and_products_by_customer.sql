@@ -1,7 +1,7 @@
 -- id: segments_and_products_by_customer
 -- description: Market segments and their products for one customer — feeds deck_plan.compute_slide_plan's total_market_segments/segment_product_counts inputs
 -- kind: table
--- param: customer string [A-Za-z0-9,.'&()/\s-]+
+-- param: customer string [\w,.'&()/\s-]+
 SELECT DISTINCT
     france_sms_fr AS segment,
     tradename_en  AS product

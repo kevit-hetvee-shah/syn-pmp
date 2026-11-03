@@ -21,122 +21,178 @@ this agent decides PRESENTATION, never arithmetic; pipeline/narrative_facts.py
 and pipeline/narrative_validator.py mechanically rejects any fact_id this
 agent didn't receive.
 
-Same API, same constraints as agent_definitions/deck_planner_agent.py (see
-that module's docstring for the full explanation): ToolDefinition as a
-"simple tool", Skill as capability metadata, and NOT RUN, NOT SERVED, NOT
-INVOKED anywhere in this session. The generation step itself (turning
-get_narrative_brief_inputs' output into a NarrativeSlideSpec) therefore
-can't be exercised end to end here — pipeline/narrative_facts.py,
-pipeline/narrative_validator.py, and pipeline/narrative_renderer.py are each
-fully tested SDK-free, against hand-built NarrativeSlideSpec instances that
-stand in for what this agent would eventually return.
+Same tool/skill API as agent_definitions/deck_planner_agent.py. Wired for a
+REAL invocation (2026-10-30) via pipeline/narrative_agent_runner.py — the
+only place in this whole project that makes a real Portkey/LLM call.
+`build_brief_agent(facts)` builds a fresh AgentDefinition per deck build
+whose tool is bound (by closure) to that build's own already-fetched
+CustomerFacts/FactRegistry — deliberately NOT re-fetching inside the tool,
+so every fact_id this agent cites is guaranteed to exist in the SAME
+registry pipeline/renderer.py and pipeline/validator.py check against (a
+second independent fetch_customer_facts() call would create a different
+FactRegistry instance with different fact_ids — a real correctness trap this
+avoids by construction rather than by convention).
 """
 
 from __future__ import annotations
 
+from typing import Callable
+
 from ai_foundry_platform_sdk.agent import AgentDefinition, PortkeyConfig, Skill, ToolDefinition
 from ai_foundry_platform_sdk.model import ModelConfig
+from strands import tool
 
-from pipeline.data_analyst import fetch_customer_facts
+from pipeline.data_analyst import CustomerFacts
 from pipeline.models import ALLOWED_NARRATIVE_CHART_TYPES
 from pipeline.narrative_facts import NARRATIVE_SLIDE_KEYS, compute_narrative_facts
 
+DOMAIN_PROMPT = (
+    "You are the Brief Agent for a Syngenta France pre-meeting sales deck. For "
+    "the slide_key you're asked to generate, call get_narrative_brief_inputs(slide_key) "
+    "first.\n"
+    "If groundable=False: do not fabricate content for that slide. Your returned slide "
+    "must still have EXACTLY ONE block — a single callout block whose text states plainly "
+    "that this slide can't be generated yet and gives the 'reason' field's explanation. "
+    "Never return zero blocks, even when nothing is groundable — an empty slide is not an "
+    "acceptable way to say 'not available'; a callout saying so is.\n"
+    "If groundable=True, you get a `facts` dict (name -> {fact_id, value, unit, kind}), "
+    "a `caveats` list of things you must NOT claim or compute yourself, and the "
+    "menu of block/chart types you're allowed to use. Every fact's `kind` is either "
+    "'number' or 'text' — check it. A KPI block's value_fact_id/delta_from_fact_id, a "
+    "chart series' values, and a table cell's pct_change_from pair ALL require a fact "
+    "whose kind is 'number'. A 'text' fact (a trajectory label like 'growing', a "
+    "product/segment name) belongs in a callout's prose or a table's plain fact_id "
+    "cell instead — NEVER in a numeric slot, even if it seems like the most important "
+    "fact for that slide. Your job:\n"
+    "- Decide which block(s) best present these specific facts — a KPI callout for "
+    "a single headline number, a chart for a comparison across categories, a table "
+    "for several parallel rows, free text for the narrative/recommendation. Pick "
+    "whatever fits the data; there is no single required layout for this slide.\n"
+    "- If you use a chart, pick the chart_type (from allowed_chart_types) that best "
+    "fits the data's shape — e.g. a trend across seasons suits a line or column "
+    "chart, a few named items suit bar or column, a share-of-whole suits doughnut "
+    "or pie. Never pick a type that misrepresents the data's shape.\n"
+    "- EVERY number you display, in any block, must be one of the fact_ids you were "
+    "given. Never compute a new figure yourself, even a simple one (a sum, a second "
+    "delta, a percentage) — if you need a derived number that wasn't provided, that "
+    "means it isn't available yet; say so in the callout text instead of inventing it.\n"
+    "- Respect every caveat exactly — they exist because a specific fabrication risk "
+    "was identified for this slide (e.g. a unit-of-measure mismatch, a missing "
+    "product classification); do not work around a caveat by phrasing around it.\n"
+    "Return your slide as blocks (chart/table/kpi/callout), each block's data given "
+    "as fact_id references, never literal numbers."
+)
 
-def get_narrative_brief_inputs(customer: str, slide_key: str) -> dict:
-    """Agent-callable tool: the deterministic ground truth for ONE narrative
-    slide — every fact this agent is allowed to reference, any caveats it
-    must respect by NOT computing/inventing a number instead, and the menu
-    of block/chart types it may choose from. Deciding how to present this
-    (which blocks, which chart type, how to phrase the narrative) is the
-    agent's job; which numbers exist is not.
+
+def _make_get_narrative_brief_inputs(facts: CustomerFacts) -> Callable[[str], dict]:
+    """Builds the tool function for ONE deck build, closing over that
+    build's already-fetched `facts` instead of re-fetching — see this
+    module's docstring for why that matters.
+
+    The returned function MUST be `@tool`-decorated (Strands), not a bare
+    function — confirmed the hard way on the first real invocation of this
+    agent: `ai_foundry_platform_sdk.agent.ToolDefinition`'s own docstring
+    says a factory must return "a framework-compatible callable," and
+    `AgentBuilder` passes whatever the factory returns straight into
+    `strands.Agent(tools=[...])` with zero wrapping of its own. A plain
+    function silently fails `isinstance(tool, AgentTool)` in Strands' tool
+    registry (strands/tools/registry.py) and gets dropped with only a
+    `logger.warning("unrecognized tool specification")` — no exception, so
+    the agent runs "successfully" with a tool it can never actually call.
+    That's exactly what happened before this was caught: the agent fabricated
+    a plausible-sounding "data not available" refusal for every slide,
+    including the ones that ARE groundable, because it had no working tool
+    to check. Every other agent_definitions/*.py tool in this repo has this
+    same latent bug — they were never caught because none of them had ever
+    been invoked for real before this one.
     """
-    if slide_key not in NARRATIVE_SLIDE_KEYS:
-        return {"error": f"unknown slide_key '{slide_key}' (expected one of {NARRATIVE_SLIDE_KEYS})"}
 
-    facts = fetch_customer_facts(customer)
-    narrative = compute_narrative_facts(slide_key, facts)
-    if not narrative.groundable:
+    @tool
+    def get_narrative_brief_inputs(slide_key: str) -> dict:
+        """The deterministic ground truth for ONE narrative slide — every
+        fact this agent is allowed to reference, any caveats it must respect
+        by NOT computing/inventing a number instead, and the menu of
+        block/chart types it may choose from. Deciding how to present this
+        (which blocks, which chart type, how to phrase the narrative) is the
+        agent's job; which numbers exist is not.
+
+        Args:
+            slide_key: which Commercial Intelligence Brief slide to fetch
+                inputs for — one of executive_summary, account_health,
+                portfolio_shifts, market_benchmarking, operational_risk.
+        """
+        if slide_key not in NARRATIVE_SLIDE_KEYS:
+            return {"error": f"unknown slide_key '{slide_key}' (expected one of {NARRATIVE_SLIDE_KEYS})"}
+
+        narrative = compute_narrative_facts(slide_key, facts)
+        if not narrative.groundable:
+            return {
+                "slide_key": slide_key,
+                "groundable": False,
+                "reason": narrative.reason_not_groundable,
+            }
+
         return {
             "slide_key": slide_key,
-            "groundable": False,
-            "reason": narrative.reason_not_groundable,
+            "groundable": True,
+            "facts": {
+                name: {
+                    "fact_id": fid,
+                    "value": facts.registry.get(fid).value,
+                    "unit": facts.registry.get(fid).unit,
+                    # Explicit, not left for you to infer from the name or
+                    # value — a numeric slot (KPI value/delta, a chart
+                    # series value, a table pct_change_from pair) MUST only
+                    # ever reference a fact whose kind is "number". A "text"
+                    # fact (e.g. a trajectory label like 'growing', or a
+                    # product/segment name) belongs in callout prose or a
+                    # table's plain fact_id cell instead.
+                    "kind": "number" if isinstance(facts.registry.get(fid).value, (int, float)) else "text",
+                }
+                for name, fid in narrative.facts.items()
+            },
+            "caveats": narrative.caveats,
+            "allowed_block_types": ["chart", "table", "kpi", "callout"],
+            "allowed_chart_types": list(ALLOWED_NARRATIVE_CHART_TYPES),
         }
 
-    return {
-        "slide_key": slide_key,
-        "groundable": True,
-        "facts": {
-            name: {"fact_id": fid, "value": facts.registry.get(fid).value, "unit": facts.registry.get(fid).unit}
-            for name, fid in narrative.facts.items()
-        },
-        "caveats": narrative.caveats,
-        "allowed_block_types": ["chart", "table", "kpi", "callout"],
-        "allowed_chart_types": list(ALLOWED_NARRATIVE_CHART_TYPES),
-    }
+    return get_narrative_brief_inputs
 
 
-get_narrative_brief_inputs_tool = ToolDefinition(
-    name="get_narrative_brief_inputs",
-    # Simple tool: no session/auth/cleanup needed, so the factory ignores
-    # (session_id, metadata) and just returns the plain function.
-    factory=lambda session_id, metadata: get_narrative_brief_inputs,
-)
-
-agent = AgentDefinition(
-    name="Brief Agent",
-    description=(
-        "Generates the Commercial Intelligence Brief's 5 narrative slides, choosing "
-        "its own visual presentation (chart, table, KPI callout, or text callout) "
-        "per slide from the facts it's given — never inventing a number itself."
-    ),
-    domain_prompt=(
-        "You are the Brief Agent for a Syngenta France pre-meeting sales deck. For "
-        "a given (customer, slide_key), call get_narrative_brief_inputs(customer, "
-        "slide_key) first.\n"
-        "If groundable=False: do not fabricate content for that slide. State plainly "
-        "that this slide can't be generated yet and why (the 'reason' field), and stop.\n"
-        "If groundable=True, you get a `facts` dict (name -> {fact_id, value, unit}), "
-        "a `caveats` list of things you must NOT claim or compute yourself, and the "
-        "menu of block/chart types you're allowed to use. Your job:\n"
-        "- Decide which block(s) best present these specific facts — a KPI callout for "
-        "a single headline number, a chart for a comparison across categories, a table "
-        "for several parallel rows, free text for the narrative/recommendation. Pick "
-        "whatever fits the data; there is no single required layout for this slide.\n"
-        "- If you use a chart, pick the chart_type (from allowed_chart_types) that best "
-        "fits the data's shape — e.g. a trend across seasons suits a line or column "
-        "chart, a few named items suit bar or column, a share-of-whole suits doughnut "
-        "or pie. Never pick a type that misrepresents the data's shape.\n"
-        "- EVERY number you display, in any block, must be one of the fact_ids you were "
-        "given. Never compute a new figure yourself, even a simple one (a sum, a second "
-        "delta, a percentage) — if you need a derived number that wasn't provided, that "
-        "means it isn't available yet; say so in the callout text instead of inventing it.\n"
-        "- Respect every caveat exactly — they exist because a specific fabrication risk "
-        "was identified for this slide (e.g. a unit-of-measure mismatch, a missing "
-        "product classification); do not work around a caveat by phrasing around it.\n"
-        "Return your slide as blocks (chart/table/kpi/callout), each block's data given "
-        "as fact_id references, never literal numbers."
-    ),
-    skills=[
-        Skill(
-            id="narrative_brief_generation",
-            name="Narrative Brief Generation",
-            description=(
-                "Generate one Commercial Intelligence Brief slide's content and visual "
-                "presentation from the facts available for it, grounding every displayed "
-                "number in a real fact_id."
-            ),
-            tags=["deck", "narrative", "brief", "pre-meeting"],
+def build_brief_agent(facts: CustomerFacts) -> AgentDefinition:
+    """One fresh AgentDefinition per deck build, its tool bound to `facts`.
+    Cheap — AgentDefinition/ToolDefinition are plain data, no setup cost."""
+    tool_fn = _make_get_narrative_brief_inputs(facts)
+    tool = ToolDefinition(
+        name="get_narrative_brief_inputs",
+        # Simple tool: no session/auth/cleanup needed, so the factory ignores
+        # (session_id, metadata) and just returns the bound function.
+        factory=lambda session_id, metadata: tool_fn,
+    )
+    return AgentDefinition(
+        name="Brief Agent",
+        description=(
+            "Generates the Commercial Intelligence Brief's 5 narrative slides, choosing "
+            "its own visual presentation (chart, table, KPI callout, or text callout) "
+            "per slide from the facts it's given — never inventing a number itself."
         ),
-    ],
-    tools=[get_narrative_brief_inputs_tool],
-    model_config=ModelConfig(model_id="@az-openai/gpt-4.1-mini"),
-    portkey=PortkeyConfig(
-        allow_caller_kwargs=True,
-        debug_logging=False,
-    ),
-)
-
-# Deliberately not called in this session:
-#   from ai_foundry_platform_sdk.app import create_agui_app
-#   app = create_agui_app(agent, ...)
-# Serving/invoking this agent would route through Portkey and incur cost.
+        domain_prompt=DOMAIN_PROMPT,
+        skills=[
+            Skill(
+                id="narrative_brief_generation",
+                name="Narrative Brief Generation",
+                description=(
+                    "Generate one Commercial Intelligence Brief slide's content and visual "
+                    "presentation from the facts available for it, grounding every displayed "
+                    "number in a real fact_id."
+                ),
+                tags=["deck", "narrative", "brief", "pre-meeting"],
+            ),
+        ],
+        tools=[tool],
+        model_config=ModelConfig(model_id="@az-openai/gpt-4.1-mini"),
+        portkey=PortkeyConfig(
+            allow_caller_kwargs=True,
+            debug_logging=False,
+        ),
+    )

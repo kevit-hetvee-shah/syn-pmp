@@ -46,6 +46,22 @@ def _missing(label: str, fact_id: str, registry: FactRegistry) -> list[str]:
     return [] if fact_id in registry else [f"{label}: fact_id '{fact_id}' not found in registry"]
 
 
+def _not_numeric(label: str, fact_id: str, registry: FactRegistry) -> list[str]:
+    """Catches a real bug the first live Brief Agent call actually hit: a
+    numeric slot (a chart value, a KPI's headline number, a %-change pair)
+    pointed at a string-valued fact (e.g. a product name) — the renderer's
+    `float(registry.get(fact_id).value)` crashes on that at render time, so
+    this must be caught here, before rendering. Only call after `_missing`
+    has already confirmed the fact_id exists.
+    """
+    value = registry.get(fact_id).value
+    try:
+        float(value)
+    except (TypeError, ValueError):
+        return [f"{label}: fact_id '{fact_id}' is not numeric (value={value!r}) — cannot be used here"]
+    return []
+
+
 def _validate_chart_block(label: str, block: NarrativeChartBlock, registry: FactRegistry) -> list[str]:
     errors: list[str] = []
     if block.chart_type not in ALLOWED_NARRATIVE_CHART_TYPES:
@@ -65,6 +81,8 @@ def _validate_chart_block(label: str, block: NarrativeChartBlock, registry: Fact
         for value in series.values:
             for fid in value.referenced_fact_ids():
                 errors += _missing(label, fid, registry)
+                if fid in registry:
+                    errors += _not_numeric(label, fid, registry)
     return errors
 
 
@@ -81,13 +99,19 @@ def _validate_table_block(label: str, block: NarrativeTableBlock, registry: Fact
             if cell.pct_change_from is not None:
                 for fid in cell.pct_change_from:
                     errors += _missing(label, fid, registry)
+                    if fid in registry:
+                        errors += _not_numeric(label, fid, registry)
     return errors
 
 
 def _validate_kpi_block(label: str, block: NarrativeKpiBlock, registry: FactRegistry) -> list[str]:
     errors = _missing(label, block.value_fact_id, registry)
+    if block.value_fact_id in registry:
+        errors += _not_numeric(label, block.value_fact_id, registry)
     if block.delta_from_fact_id is not None:
         errors += _missing(label, block.delta_from_fact_id, registry)
+        if block.delta_from_fact_id in registry:
+            errors += _not_numeric(label, block.delta_from_fact_id, registry)
     return errors
 
 

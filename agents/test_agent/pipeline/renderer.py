@@ -21,7 +21,16 @@ from pipeline.models import CellSpec, ChartSpec, ChartValueSpec, DeckSpec, Fact,
 from utils.formatting import fmt_eur, fmt_pct_change, fmt_qty
 from utils.pptx_clone import clone_slide, reorder_slides
 
-TEMPLATE_PATH = Path(__file__).resolve().parent.parent.parent.parent / "docs" / "France_Template_Business_Review_Outlook_French .pptx"
+# The RCR-reviewed template (23 slides, includes the Commercial Intelligence
+# Brief section) — the live template as of 2026-10-30, superseding the older
+# 16-slide "France_Template_Business_Review_Outlook_French .pptx". See
+# pipeline/narrative_renderer.BRIEF_TEMPLATE_PATH (same file) for the
+# narrative-slide-specific rendering this template's new section needs.
+TEMPLATE_PATH = (
+    Path(__file__).resolve().parent.parent.parent.parent
+    / "docs"
+    / "France_Template_Business_Review_Outlook_French version_sent to RCR.pptx"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -157,8 +166,17 @@ def _apply_chart(slide, chart_spec: ChartSpec, registry: FactRegistry) -> None:
     chart.replace_data(chart_data)
 
 
-def _fill_slide(slide, content: SlideContentSpec, registry: FactRegistry) -> None:
+def _fill_slide(slide, content: SlideContentSpec, registry: FactRegistry, prs: Presentation) -> None:
     if content.slide_type == "static":
+        return
+    if content.slide_type == "narrative":
+        # Deferred import: pipeline.narrative_renderer imports format_fact/
+        # resolve_cell_text/resolve_chart_value FROM this module, so a
+        # top-level import here would be circular. By the time this function
+        # actually runs, both modules are already fully loaded.
+        from pipeline.narrative_renderer import render_narrative_slide
+
+        render_narrative_slide(slide, content.narrative_spec, registry, prs)
         return
     if content.slide_type == "cover":
         for shape in slide.shapes:
@@ -207,7 +225,7 @@ def render_deck(deck_spec: DeckSpec, registry: FactRegistry) -> bytes:
         target_slides.append(original_slides[src_idx] if seen_before == 0 else clone_slide(prs, original_slides[src_idx]))
 
     for content, slide in zip(deck_spec.slides, target_slides):
-        _fill_slide(slide, content, registry)
+        _fill_slide(slide, content, registry, prs)
 
     reorder_slides(prs, target_slides)
     buffer = io.BytesIO()
@@ -233,7 +251,13 @@ def post_render_check(pptx_bytes: bytes, deck_spec: DeckSpec, registry: FactRegi
 
     for idx, (content, slide) in enumerate(zip(deck_spec.slides, slides)):
         label = f"slide {idx} ({content.slide_type})"
-        if content.slide_type in ("static",):
+        if content.slide_type in ("static", "narrative"):
+            # Narrative slides already went through validate_narrative_slide_spec
+            # before rendering (the "before" half of verification), and
+            # pipeline/narrative_renderer.py's own tests cover the Renderer-bug
+            # class this check otherwise guards against (wrong shape/value for
+            # a given block type) — not re-checked here to avoid duplicating
+            # that per-block-type logic a second time.
             continue
         if content.slide_type == "cover":
             cover_text = "\n".join(s.text_frame.text for s in slide.shapes if s.has_text_frame)

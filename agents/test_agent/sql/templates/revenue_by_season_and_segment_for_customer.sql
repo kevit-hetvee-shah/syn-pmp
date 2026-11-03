@@ -1,7 +1,7 @@
 -- id: revenue_by_season_and_segment_for_customer
 -- description: Revenue per market segment per season for one customer — feeds slide 5's segment-sales table
 -- kind: table
--- param: customer string [A-Za-z0-9,.'&()/\s-]+
+-- param: customer string [\w,.'&()/\s-]+
 SELECT
     france_sms_fr AS segment,
     season,

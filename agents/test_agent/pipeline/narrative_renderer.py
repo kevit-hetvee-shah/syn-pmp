@@ -3,17 +3,18 @@ Intelligence Brief). Deliberately separate from pipeline/renderer.py: that
 renderer fills a FIXED shape per template slide (one table, maybe one
 chart); this one builds a variable STACK of fresh shapes from whatever
 blocks a NarrativeSlideSpec contains, stacked vertically in the content area
-below the slide's title. Still deterministic, still no LLM — the blocks are
-either hand-built (tests) or produced by the Brief Agent (not invoked in
-this codebase; see agent_definitions/brief_agent.py), never free-formed by
-this module.
+below the slide's title. Still deterministic, still no LLM itself — the
+blocks are either hand-built (tests), a placeholder (SKIP_NARRATIVE_AGENT,
+see pipeline/narrative_agent_runner.py), or produced by a real Brief Agent
+call (pipeline/narrative_agent_runner.invoke_brief_agent, wired 2026-10-30) —
+never free-formed by this module, which only ever fills in what it's given.
 
-Uses a SEPARATE template file from pipeline/renderer.py's TEMPLATE_PATH —
-only the newer "...sent to RCR.pptx" template has these 5 slides at all (the
-older 16-slide template has no Commercial Intelligence Brief section).
-Merging this standalone Brief sub-deck into the main client deck is a
-follow-up integration step, not done here — see this module's own
-docstring note at BRIEF_TEMPLATE_PATH.
+`render_narrative_slide` (the per-slide fill, operating on an already-cloned
+slide) is the function pipeline/renderer.py calls directly to merge these
+slides into the main client deck — see pipeline.renderer.TEMPLATE_PATH,
+which now points at the SAME file as BRIEF_TEMPLATE_PATH below.
+`render_narrative_deck` (building a standalone mini-deck of just the
+narrative slides) still exists purely for this module's own tests.
 """
 
 from __future__ import annotations
@@ -40,8 +41,7 @@ from utils.formatting import fmt_pct_change
 from utils.pptx_clone import clone_slide, reorder_slides
 
 # The RCR-reviewed template — the only one with a Commercial Intelligence
-# Brief section. pipeline/renderer.TEMPLATE_PATH stays pointed at the older
-# 16-slide template until the two are deliberately merged.
+# Brief section. Same file pipeline.renderer.TEMPLATE_PATH now uses.
 BRIEF_TEMPLATE_PATH = (
     Path(__file__).resolve().parent.parent.parent.parent
     / "docs"

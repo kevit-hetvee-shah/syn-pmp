@@ -4,7 +4,7 @@ import os
 from ai_foundry_platform_sdk.agent import AgentDefinition, AuthConfig, PortkeyConfig, Skill, ToolDefinition
 from ai_foundry_platform_sdk.agent.prompt import PromptAssembler
 from ai_foundry_platform_sdk.app import create_agui_app
-from ai_foundry_platform_sdk.model import ModelConfig
+from ai_foundry_platform_sdk.model import EnvVarResolver, ModelConfig, ModelProvider
 
 # To enable code interpreter with S3 file I/O, uncomment the import below
 # and add code_interpreter_tool(...) to the tools list. In
@@ -69,6 +69,25 @@ from dotenv import load_dotenv
 load_dotenv(".env")
 _offline_prompts = os.environ.get("OFFLINE_PROMPTS", "").strip().lower() in ("1", "true", "yes")
 
+# Local dev only, explicit opt-in: ModelProvider's default secret_resolver is
+# AWSSecretsManagerResolver, which hard-requires AGENT_SECRET_NAME (or legacy
+# PORTKEY_SECRET_NAME) pointing at a real AWS Secrets Manager secret — there
+# is no built-in "just use PORTKEY_API_KEY directly" fallback in that path
+# (confirmed against ai_foundry_platform_sdk.model.provider's source,
+# 2026-11-02), unlike what this file's own .env.example comment implies.
+# When AGENT_SECRET_NAME/PORTKEY_SECRET_NAME are unset but PORTKEY_API_KEY
+# is, swap in EnvVarResolver (an SDK-provided resolver, explicitly documented
+# as "For local dev and testing") so the agent can start with a plain env var
+# instead of real AWS access. NEVER set AGENT_SECRET_NAME in a deployed
+# environment, so this branch never activates there.
+_model_provider = (
+    ModelProvider(secret_name="PORTKEY_API_KEY", secret_resolver=EnvVarResolver())
+    if not os.environ.get("AGENT_SECRET_NAME")
+    and not os.environ.get("PORTKEY_SECRET_NAME")
+    and os.environ.get("PORTKEY_API_KEY")
+    else None
+)
+
 app = create_agui_app(
     agent,
     # Local dev only: lets a browser-based test UI running on another origin/port
@@ -76,6 +95,7 @@ app = create_agui_app(
     # .env for local testing; leave unset in deployed environments.
     cors_origins=os.environ["CORS_ORIGINS"].split(",") if os.environ.get("CORS_ORIGINS") else None,
     prompt_assembler=PromptAssembler(portkey_loader=None) if _offline_prompts else None,
+    model_provider=_model_provider,
 )
 
 # Meeting Context intake step (wizard step 1) — plain REST, mock data only.

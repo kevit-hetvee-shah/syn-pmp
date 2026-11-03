@@ -8,12 +8,16 @@ see pipeline/renderer.py.)
 from __future__ import annotations
 
 from pipeline.models import CellSpec, DeckSpec, FactRegistry
+from pipeline.narrative_validator import validate_narrative_slide_spec
 
 
 def validate_deck_spec(deck_spec: DeckSpec, registry: FactRegistry) -> list[str]:
     errors: list[str] = []
     for slide_idx, slide in enumerate(deck_spec.slides):
         label = f"slide {slide_idx} ({slide.slide_type})"
+        if slide.slide_type == "narrative":
+            errors += validate_narrative_slide_spec(slide.narrative_spec, registry)
+            continue
         for cell in slide.cells:
             errors += _check_cell(label, cell, registry)
         if slide.chart:

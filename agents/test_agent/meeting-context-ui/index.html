@@ -169,7 +169,10 @@
     </div>
 
     <label for="location">Location</label>
-    <select id="location"></select>
+    <input id="location" readonly placeholder="Auto-filled from the customer account" />
+
+    <label for="region">Region</label>
+    <select id="region" multiple size="5"></select>
 
     <label for="objectives">Objective <span class="req">*</span></label>
     <textarea id="objectives"></textarea>
@@ -273,6 +276,55 @@ function fillSelect(selectEl, values, placeholder) {
   if (values.includes(current)) selectEl.value = current;
 }
 
+function fillMultiSelect(selectEl, values) {
+  const current = [...selectEl.selectedOptions].map((o) => o.value);
+  selectEl.innerHTML = '';
+  for (const v of values) {
+    const opt = document.createElement('option');
+    opt.value = v;
+    opt.textContent = v;
+    opt.selected = current.includes(v);
+    selectEl.appendChild(opt);
+  }
+}
+
+function getSelectedRegions() {
+  return [...el('region').selectedOptions].map((o) => o.value);
+}
+
+function setSelectedRegions(values) {
+  for (const opt of el('region').options) {
+    opt.selected = values.includes(opt.value);
+  }
+}
+
+async function loadRegions() {
+  try {
+    const regions = await fetchJSON('/regions');
+    fillMultiSelect(el('region'), regions);
+  } catch (e) {
+    el('conn-status').textContent = '✗ regions failed to load: ' + e.message;
+  }
+}
+
+// Location is read-only (per the "Set the Region" story): auto-filled from
+// the selected customer account's State, never typed by the rep. No real
+// State field exists yet in either the live Databricks data or the local
+// sample (see data_access.get_customer_location's docstring) — this comes
+// back blank today, but the fetch/fill plumbing is real and ready for when
+// a real source is connected.
+async function loadLocationForCustomer() {
+  try {
+    const customer = el('customer').value;
+    if (!customer) { el('location').value = ''; return; }
+    const resp = await fetchJSON('/customer-location?customer=' + encodeURIComponent(customer));
+    el('location').value = resp.location || '';
+  } catch (e) {
+    el('location').value = '';
+  }
+  scheduleSave();
+}
+
 function fillDatalist(dataListEl, values) {
   dataListEl.innerHTML = '';
   for (const v of values) {
@@ -314,6 +366,7 @@ function currentDraft() {
     season: el('season').value || null,
     campaign: el('campaign').value || null,
     location: el('location').value || null,
+    region: getSelectedRegions(),
     objectives: el('objectives').value || null,
     hook: el('hook').value || null,
     focus_products: focusProducts,
@@ -325,12 +378,9 @@ function currentDraft() {
   };
 }
 
-async function loadMeetingTypesAndLocations() {
+async function loadMeetingTypes() {
   try {
-    const [meetingTypes, locations] = await Promise.all([
-      fetchJSON('/meeting-types'),
-      fetchJSON('/locations'),
-    ]);
+    const meetingTypes = await fetchJSON('/meeting-types');
     // Locked to a single value, per the user: "no other options could be
     // selected for now" — no blank placeholder, just the one option,
     // pre-selected, with the <select disabled> set in the HTML.
@@ -342,7 +392,6 @@ async function loadMeetingTypesAndLocations() {
       opt.textContent = v;
       select.appendChild(opt);
     }
-    fillSelect(el('location'), locations, 'Select location…');
     el('conn-status').textContent = '✓ connected';
     // No scheduleSave() here — init() saves once at the end, AFTER
     // loadExistingDraft() has had a chance to restore every field. Saving
@@ -437,6 +486,7 @@ async function loadExistingDraft() {
     el('season').value = record.season || '';
     el('campaign').value = record.campaign || '';
     el('location').value = record.location || '';
+    setSelectedRegions(record.region || []);
     el('objectives').value = record.objectives || '';
     el('hook').value = record.hook || '';
     el('notes').value = record.notes || '';
@@ -508,6 +558,7 @@ function selectCustomer(name) {
   el('customer-list').hidden = true;
   scheduleSave();
   loadProductsForCustomer();
+  loadLocationForCustomer();
 }
 
 async function loadProductsForCustomer() {
@@ -630,13 +681,17 @@ async function fillSampleData() {
 
   el('season').value = firstRealOptionValue(el('season'));
   el('campaign').value = firstRealOptionValue(el('campaign'));
-  el('location').value = firstRealOptionValue(el('location'));
+  const firstRegion = el('region').options.length ? el('region').options[0].value : null;
+  setSelectedRegions(firstRegion ? [firstRegion] : []);
 
   el('objectives').value = "Review last season's performance and align on priority products for the upcoming campaign.";
   el('hook').value = 'Strong growth in wheat fungicides last season.';
   el('notes').value = 'Sample data auto-filled for quick testing — replace before a real meeting.';
 
-  if (customer) await loadProductsForCustomer();
+  if (customer) {
+    await loadProductsForCustomer();
+    await loadLocationForCustomer();
+  }
   focusProducts = [...el('product-suggestions').options].map((o) => o.value).slice(0, 2);
   renderChips();
 
@@ -648,11 +703,12 @@ async function fillSampleData() {
   showStatus('Sample data filled in — review, then Confirm & Next.', 'success');
 }
 
-for (const id of ['meeting-date', 'duration-hours', 'duration-minutes', 'season', 'campaign', 'location', 'objectives', 'hook', 'notes']) {
+for (const id of ['meeting-date', 'duration-hours', 'duration-minutes', 'season', 'campaign', 'objectives', 'hook', 'notes']) {
   el(id).addEventListener('input', scheduleSave);
   el(id).addEventListener('change', scheduleSave);
 }
 el('meeting-type').addEventListener('change', scheduleSave);
+el('region').addEventListener('change', scheduleSave);
 
 el('customer-search').addEventListener('focus', () => renderCustomerList(el('customer-search').value));
 el('customer-search').addEventListener('input', () => {
@@ -689,10 +745,12 @@ el('add-product-btn').addEventListener('click', () => {
 });
 
 (async function init() {
-  await loadMeetingTypesAndLocations();      // populates meeting-type + location OPTIONS
+  await loadMeetingTypes();                  // populates meeting-type OPTIONS
+  await loadRegions();                       // populates region OPTIONS
   await loadCustomersSeasonsAndCampaigns();  // populates season/campaign OPTIONS + customerOptions
   await loadExistingDraft();                 // now that every <select>'s options exist, restore real VALUES (if any)
   await loadProductsForCustomer();           // uses the (possibly just-restored) customer value
+  await loadLocationForCustomer();           // re-fetches so Location always reflects the current source, not a stale saved value
   renderChips();
   scheduleSave();  // single save point: persists either a brand-new draft's default meeting_type, or re-affirms a restored one — never a half-populated form
 })();

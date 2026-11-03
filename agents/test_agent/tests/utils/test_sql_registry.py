@@ -8,6 +8,8 @@ from utils.sql_registry import TEMPLATES, get_template
 def test_all_template_files_loaded() -> None:
     assert set(TEMPLATES) == {
         "distinct_customers",
+        "distinct_customers_for_sales_rep",
+        "location_for_customer",
         "distinct_seasons",
         "distinct_campaigns",
         "distinct_products",
@@ -33,6 +35,28 @@ def test_distinct_products_customer_param_is_optional() -> None:
     assert param.name == "customer"
     assert param.optional is True
     assert template.validate_params({}) == []  # omitting an optional param is fine
+    assert template.validate_params({"customer": "ACTURA"}) == []
+
+
+def test_distinct_customers_for_sales_rep_requires_owner_id() -> None:
+    template = get_template("distinct_customers_for_sales_rep")
+    assert len(template.params) == 1
+    param = template.params[0]
+    assert param.name == "owner_id"
+    assert param.optional is False
+    assert template.validate_params({}) == ["param 'owner_id' is required"]
+    assert template.validate_params({"owner_id": "0053V000003KfbBQAS"}) == []
+    assert template.validate_params({"owner_id": "not an id!"}) != []
+
+
+def test_location_for_customer_requires_customer() -> None:
+    template = get_template("location_for_customer")
+    assert len(template.params) == 1
+    param = template.params[0]
+    assert param.name == "customer"
+    assert param.optional is False
+    assert "account_city" in template.sql
+    assert template.validate_params({}) == ["param 'customer' is required"]
     assert template.validate_params({"customer": "ACTURA"}) == []
 
 

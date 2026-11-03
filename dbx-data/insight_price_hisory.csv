@@ -1,0 +1,16 @@
+column_name,data_type,comment,tag_name,tag_value
+fact_guid,STRING,"Deterministic unique identifier generated from account, product, season, and tracked pricing field.",conformed_dim,fact_guid
+account_id,STRING,Unique Salesforce account identifier for the France customer account.,conformed_dim,account_id
+account_name,STRING,Name of the France customer account.,null,null
+centrale,STRING,"Derived France Centrale based on the account hierarchy, using Purchasing National, Purchasing Local, Distribution Regional, and Distribution Local hierarchy levels.",null,null
+account_level_france,STRING,France-specific account hierarchy level associated with the customer account.,conformed_dim,account_level_france
+product_code,STRING,Commercial product code associated with the SP Price History record.,conformed_dim,product_code
+product_description,STRING,Business-readable description of the commercial product associated with the SP Price History record.,null,null
+season_id,STRING,Salesforce season identifier associated with the SP Price History record.,conformed_dim,season_id
+season_name,STRING,Business-readable season name associated with the Salesforce season.,null,null
+flag_3p,STRING,France 3P classification derived from the customer account hierarchy and Centrale rules.,null,null
+flag_3p_seeds,STRING,France Seeds 3P classification derived from the customer account hierarchy.,null,null
+fr_st1mem,DOUBLE,France ST1MeM price value populated when track_field is FR_ST1MeM__c.,null,null
+sys_create_date_time_utc,TIMESTAMP,UTC timestamp when the Gold record was created.,conformed_dim,sys_create_date_time_utc
+sys_update_date_time_utc,TIMESTAMP,UTC timestamp when the Gold record was last updated.,conformed_dim,sys_update_date_time_utc
+sys_delete_flag,BOOLEAN,Soft delete indicator for the Gold record.,conformed_dim,sys_delete_flag

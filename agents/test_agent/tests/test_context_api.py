@@ -31,6 +31,7 @@ def test_reference_data_endpoints_return_mock_lists() -> None:
     assert seasons["items"]
 
     assert client.get("/api/locations").json()
+    assert client.get("/api/regions").json() == ["EST", "NORD", "OUEST", "SUD EST", "SUD OUEST"]
     assert set(client.get("/api/distributor-profiles").json()) == {"Hedgehog", "Polar Bear", "Wolf", "Dolphin"}
 
     products = client.get("/api/product-suggestions").json()
@@ -149,3 +150,30 @@ def test_invalid_dynamic_score_value_is_rejected() -> None:
     }
     resp = client.post("/api/meeting-context/draft", json=draft)
     assert resp.status_code == 422
+
+
+def test_customer_location_endpoint_has_no_real_source_yet() -> None:
+    """"Set the Region" story: Location auto-fills from the customer
+    account's State, but no real source is connected yet — always None."""
+    assert client.get("/api/customer-location", params={"customer": "ACTURA"}).json() == {"location": None}
+
+
+def test_region_accepts_multiple_values_from_the_fixed_set() -> None:
+    draft = {"customer_id": "ACTURA", "region": ["NORD", "SUD EST"]}
+    created = client.post("/api/meeting-context/draft", json=draft).json()
+    assert created["region"] == ["NORD", "SUD EST"]
+
+
+def test_region_rejects_a_value_outside_the_fixed_set() -> None:
+    draft = {"customer_id": "ACTURA", "region": ["NORD", "Unicorn"]}
+    resp = client.post("/api/meeting-context/draft", json=draft)
+    assert resp.status_code == 422
+
+
+def test_location_is_read_only_server_side_not_trusted_from_client() -> None:
+    """Same defense-in-depth pattern as distributor_profile: a client-sent
+    `location` must never be trusted — the server always recomputes it (here,
+    always None — see data_access.get_customer_location's docstring)."""
+    draft = {"customer_id": "ACTURA", "location": "A client-claimed location that isn't real"}
+    created = client.post("/api/meeting-context/draft", json=draft).json()
+    assert created["location"] is None

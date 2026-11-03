@@ -3,11 +3,11 @@ Databricks when configured, a local-sample stand-in otherwise.
 
 Per the user (2026-10-31): customer / season / product lists should be
 DB-backed for real, not just mock lists — data_access/databricks.py does
-that when `DATABRICKS_SERVER_HOSTNAME` / `DATABRICKS_HTTP_PATH` /
-`DATABRICKS_TOKEN` are configured (see that module's docstring for the
-caveat that this is a direct-connector shortcut, not the platform's
-sanctioned MCP-Gateway path). Without those env vars, every function below
-falls back to data_access/local_csv.py, clearly flagged as NOT
+that when `PM_DATABRICKS_HOST` / `PM_DATABRICKS_TOKEN` / `PM_DATABRICKS_CATALOG`
+/ `PM_DATABRICKS_SCHEMA` are configured (see that module's docstring for the
+caveat that this runs as a real workspace PAT token, not the platform's
+sanctioned per-rep MCP-Gateway path). Without those env vars, every function
+below falls back to data_access/local_csv.py, clearly flagged as NOT
 representative of the real warehouse (11 customers/28 segments/820 products
 vs. the sample's 3/~18/69 — see project memory).
 
@@ -180,3 +180,19 @@ def get_segment_product_qty_by_season(customer: str, segment: str, seasons: list
 
     ranked = sorted(products.items(), key=lambda kv: sum(kv[1].values()), reverse=True)
     return dict(ranked)
+
+
+def get_customer_location(customer: str) -> str | None:
+    """The customer account's State, used to auto-fill the read-only
+    Location field on the Meeting Context screen ("Set the Region" story,
+    2026-11-02). Unlike every other function here, this has NO backing
+    sql_registry.py template yet, by necessity rather than oversight:
+    neither the live Databricks table (venus_gold_prod.cp_sales_overview.
+    cp_france_sales_insight — checked directly via DESCRIBE TABLE) nor the
+    local CSV sample has a State/region column for a customer account; the
+    closest real columns are account_city/account_country, not a "State".
+    Returns None until a real source (e.g. a Salesforce Account.State field)
+    is connected — deliberately not approximated from account_city, per the
+    user (2026-11-02): "keep empty for now" rather than show a wrong value.
+    """
+    return None

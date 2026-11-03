@@ -11,7 +11,7 @@ def test_small_client_fits_comfortably_within_budget() -> None:
     assert plan.product_review_pages == 1
     assert plan.segment_review_slides == 2  # 1 page of segments -> slide 5 + slide 6
     assert plan.deepdive_slides_for_full_coverage == 2  # 1 per segment, no counts given
-    assert plan.total_slides_for_full_coverage == 3 + 8 + 1 + 2 + 2  # 16
+    assert plan.total_slides_for_full_coverage == 4 + 5 + 9 + 1 + 2 + 2  # 23 (RCR template)
     assert plan.over_budget is False
     assert plan.overage == 0
 
@@ -22,7 +22,7 @@ def test_large_portfolio_flags_overage_without_truncating() -> None:
     assert plan.product_review_pages == 2  # ceil(16/9)
     assert plan.segment_review_slides == 4  # ceil(8/6)=2 pages * 2 slides
     assert plan.deepdive_slides_for_full_coverage == 8  # 1 per segment (no detail given)
-    expected_total = 3 + 8 + 2 + 4 + 8  # 25
+    expected_total = 4 + 5 + 9 + 2 + 4 + 8  # 32 (RCR template)
     assert plan.total_slides_for_full_coverage == expected_total
     assert plan.target_total_slides == DEFAULT_TARGET_TOTAL_SLIDES
     assert plan.over_budget == (expected_total > DEFAULT_TARGET_TOTAL_SLIDES)

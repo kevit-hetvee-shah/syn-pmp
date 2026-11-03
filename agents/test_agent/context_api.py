@@ -57,6 +57,18 @@ def _resolve_distributor_profile_or_422(draft: MeetingContextDraft) -> MeetingCo
     return draft
 
 
+def _resolve_location(draft: MeetingContextDraft) -> MeetingContextDraft:
+    """Server-side source of truth for `draft.location` — called on every
+    save, same reasoning as `_resolve_distributor_profile_or_422`: a
+    read-only field is only actually read-only if the server enforces it,
+    not just the UI. Always overwrites whatever a client sent with the
+    customer account's real State (see data_access.get_customer_location's
+    docstring — currently always None, no real source connected yet).
+    """
+    draft.location = data_access.get_customer_location(draft.customer_id) if draft.customer_id else None
+    return draft
+
+
 @router.get("/decks")
 def list_previous_presentations() -> list[dict]:
     """Dashboard screen data. Static mock — see decks_mock_data.py docstring."""
@@ -88,6 +100,20 @@ def list_campaigns() -> dict:
 @router.get("/locations", response_model=list[str])
 def list_locations() -> list[str]:
     return mock_data.LOCATIONS
+
+
+@router.get("/regions", response_model=list[str])
+def list_regions() -> list[str]:
+    """Fixed, closed set the rep multi-selects from — see mock_data.REGIONS."""
+    return mock_data.REGIONS
+
+
+@router.get("/customer-location")
+def get_customer_location(customer: str) -> dict:
+    """Auto-fill source for the read-only Location field — see
+    data_access.get_customer_location's docstring (always None today, no
+    real State-on-Customer-Account source connected yet)."""
+    return {"location": data_access.get_customer_location(customer)}
 
 
 @router.get("/distributor-profiles", response_model=list[str])
@@ -125,12 +151,14 @@ def list_product_suggestions(customer: str | None = None) -> dict:
 @router.post("/meeting-context/draft", response_model=MeetingContextRecord)
 def save_draft(draft: MeetingContextDraft) -> MeetingContextRecord:
     draft = _resolve_distributor_profile_or_422(draft)
+    draft = _resolve_location(draft)
     return storage.create_draft(draft)
 
 
 @router.put("/meeting-context/{draft_id}/draft", response_model=MeetingContextRecord)
 def update_draft(draft_id: str, draft: MeetingContextDraft) -> MeetingContextRecord:
     draft = _resolve_distributor_profile_or_422(draft)
+    draft = _resolve_location(draft)
     record = storage.update_draft(draft_id, draft)
     if record is None:
         raise HTTPException(status_code=404, detail="Draft not found")

@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pre-Meeting Agent</title>
+<style>
+  :root {
+    --bg: #fbf3ea;
+    --card: #ffffff;
+    --border: #e7ddd0;
+    --text: #2b2420;
+    --muted: #8a7f72;
+    --accent: #1f9d55;
+    --draft: #3b6fd6;
+    --changed: #e08a2c;
+    --approved: #1f9d55;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  main { max-width: 1000px; margin: 40px auto; padding: 0 20px; }
+  h1 { font-size: 26px; margin: 0 0 24px; }
+  .new-meeting-card {
+    display: inline-flex; flex-direction: column; align-items: flex-start; gap: 16px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 24px; cursor: pointer; text-decoration: none; color: var(--text);
+    min-width: 260px;
+  }
+  .new-meeting-card .plus {
+    width: 44px; height: 44px; border-radius: 10px; background: var(--accent);
+    color: #fff; display: flex; align-items: center; justify-content: center; font-size: 22px;
+  }
+  .new-meeting-card span.label { font-weight: 600; font-size: 15px; }
+
+  h2.section-title { font-size: 15px; font-weight: 600; margin: 32px 0 16px; border-top: 1px solid var(--border); padding-top: 24px; }
+
+  .deck-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 800px) { .deck-grid { grid-template-columns: 1fr; } }
+  .deck-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 18px;
+  }
+  .status-row { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .status-dot.draft { background: var(--draft); }
+  .status-dot.data_changed { background: var(--changed); }
+  .status-dot.approved { background: var(--approved); }
+  .deck-card h3 { margin: 0 0 4px; font-size: 15px; }
+  .deck-card .deck-type { margin: 0 0 10px; font-size: 13px; color: var(--muted); }
+  .deck-card .meta { font-size: 12px; color: var(--muted); }
+
+  #conn-status { font-size: 11px; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Pre-Meeting Agent</h1>
+
+  <a class="new-meeting-card" href="index.html">
+    <span class="plus">+</span>
+    <span class="label">Prepare for new meeting</span>
+  </a>
+
+  <h2 class="section-title">Previous presentations <span id="conn-status"></span></h2>
+  <div class="deck-grid" id="deck-grid"></div>
+</main>
+
+<script>
+const API_BASE = localStorage.getItem('mc_api_base') || 'http://localhost:8082/api';
+
+const STATUS_LABELS = { draft: 'Draft', data_changed: 'Data changed', approved: 'Approved' };
+
+function formatDate(iso) {
+  const d = new Date(iso + 'T00:00:00');
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+async function loadDecks() {
+  try {
+    const resp = await fetch(API_BASE + '/decks');
+    const decks = await resp.json();
+    const grid = document.getElementById('deck-grid');
+    grid.innerHTML = '';
+    for (const deck of decks) {
+      const card = document.createElement('div');
+      card.className = 'deck-card';
+      card.innerHTML = `
+        <div class="status-row"><span class="status-dot ${deck.status}"></span> ${STATUS_LABELS[deck.status] || deck.status}</div>
+        <h3>${deck.customer}</h3>
+        <p class="deck-type">${deck.deck_type}</p>
+        <p class="meta">${formatDate(deck.date)} · ${deck.slide_count} slides</p>
+      `;
+      grid.appendChild(card);
+    }
+    document.getElementById('conn-status').textContent = '';
+  } catch (e) {
+    document.getElementById('conn-status').textContent = '(cannot reach API — is uvicorn running?)';
+  }
+}
+
+loadDecks();
+</script>
+</body>
+</html>

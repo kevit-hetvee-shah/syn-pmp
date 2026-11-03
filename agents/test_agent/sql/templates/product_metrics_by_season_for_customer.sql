@@ -1,7 +1,7 @@
 -- id: product_metrics_by_season_for_customer
 -- description: Quantity ordered and revenue per product per season for one customer — feeds slide 4's product table and doughnut chart
 -- kind: table
--- param: customer string [A-Za-z0-9,.'&()/\s-]+
+-- param: customer string [\w,.'&()/\s-]+
 SELECT
     tradename_en AS product,
     sales_uom AS unit,

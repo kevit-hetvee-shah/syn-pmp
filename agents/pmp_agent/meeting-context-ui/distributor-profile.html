@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pre-Meeting Prep Agent — Distributor Profile Assessment</title>
+<style>
+  :root {
+    --bg: #fbf3ea;
+    --card: #ffffff;
+    --border: #e7ddd0;
+    --text: #2b2420;
+    --muted: #8a7f72;
+    --accent: #1f9d55;
+    --accent-dark: #17803f;
+    --ok: #1f8a5a;
+    --error: #c0392b;
+    --disabled: #c9bfb2;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  header {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 16px 24px; border-bottom: 1px solid var(--border); background: var(--card);
+  }
+  header .title { display: flex; align-items: center; gap: 10px; }
+  header .step-label { margin: 0; font-size: 12px; color: var(--muted); }
+  header a.back { color: var(--text); text-decoration: none; font-size: 18px; }
+  header h1 { font-size: 18px; margin: 0; }
+
+  main { max-width: 820px; margin: 24px auto; padding: 0 16px 60px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 24px; }
+  .hint { font-size: 12.5px; color: var(--muted); margin: 0 0 20px; }
+
+  .btn { padding: 9px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; border: 1px solid var(--border); background: #fff; text-decoration: none; color: var(--text); display: inline-block; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .btn.link { border: none; background: none; color: var(--muted); text-decoration: underline; padding: 0; font-size: 12.5px; }
+
+  .dp-section-block { margin-bottom: 30px; padding-bottom: 24px; border-bottom: 1px solid var(--border); }
+  .dp-section-block:last-of-type { border-bottom: none; margin-bottom: 10px; }
+  .dp-section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .dp-section-header h2 { margin: 0; font-size: 16px; }
+  .dp-score-badge { font-size: 13px; font-weight: 700; color: var(--accent-dark); background: #e8f6ee; padding: 4px 12px; border-radius: 12px; white-space: nowrap; }
+  .dp-progress { height: 8px; background: #f2ede4; border-radius: 4px; overflow: hidden; margin-bottom: 20px; }
+  .dp-progress-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.2s ease; }
+
+  .dp-question { margin-bottom: 18px; }
+  .dp-question:last-child { margin-bottom: 0; }
+  .dp-question .q-label { font-size: 14px; font-weight: 600; }
+  .dp-question .q-text { font-size: 12.5px; color: var(--muted); margin: 3px 0 10px; line-height: 1.4; }
+  .score-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+  .score-pill {
+    padding: 7px 16px; border-radius: 20px; border: 1px solid var(--border);
+    background: #fff; font-size: 13px; cursor: pointer; user-select: none; transition: all 0.1s ease;
+  }
+  .score-pill:hover { border-color: var(--accent); }
+  .score-pill.selected { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .score-pill.skip { color: var(--muted); font-style: italic; }
+  .score-pill.skip.selected { background: var(--muted); border-color: var(--muted); color: #fff; font-style: normal; }
+
+  .dp-result-card { padding: 18px 20px; border-radius: 10px; background: #e8f6ee; }
+  .dp-result-card.undetermined { background: #f2ede4; }
+  .dp-result-card .profile-name { font-size: 20px; font-weight: 700; color: var(--accent-dark); margin-bottom: 4px; }
+  .dp-result-card.undetermined .profile-name { color: var(--muted); }
+  .dp-result-card .profile-desc { font-size: 13px; color: var(--text); margin-bottom: 10px; }
+  .dp-result-card .quadrant { font-size: 12px; color: var(--muted); }
+
+  .status-banner { margin-top: 16px; padding: 10px 14px; border-radius: 6px; font-size: 13px; display: none; }
+  .status-banner.error { display: block; background: #fdecea; color: var(--error); }
+  .status-banner.saved { display: block; background: #e9f7ef; color: var(--ok); }
+
+  .actions { display: flex; justify-content: space-between; align-items: center; margin-top: 24px; }
+
+  #endpoint-config {
+    font-size: 11px; color: var(--muted); display: flex; gap: 6px; align-items: center;
+    padding: 6px 24px; background: var(--card); border-bottom: 1px solid var(--border);
+  }
+  #endpoint-config input { width: 280px; font-size: 11px; padding: 3px 6px; }
+
+  #error-state { display: none; padding: 40px 24px; text-align: center; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div id="endpoint-config">
+  API base:
+  <input id="api-base" value="http://localhost:8082/api" />
+  <span id="conn-status"></span>
+</div>
+
+<header>
+  <div class="title">
+    <a class="back" href="index.html" id="back-link" title="Back to Meeting Context">&larr;</a>
+    <div>
+      <h1>Distributor Profile Assessment</h1>
+      <p class="step-label">Step 2 of 2 — Meeting Context</p>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="card" id="assessment-card">
+    <p class="hint">
+      Two sections, a few questions each — answer as many as you like, every question is optional.
+      Scores are calculated per section as you go. Leave everything unanswered and click
+      "Confirm &amp; Next" to skip this step entirely.
+    </p>
+
+    <section class="dp-section-block">
+      <div class="dp-section-header">
+        <h2>1. Pressure to Protect Value</h2>
+        <div class="dp-score-badge" id="pressure-badge">— / 60</div>
+      </div>
+      <div class="dp-progress"><div class="dp-progress-fill" id="pressure-fill"></div></div>
+      <div id="pressure-questions"></div>
+    </section>
+
+    <section class="dp-section-block">
+      <div class="dp-section-header">
+        <h2>2. Partnership Mode</h2>
+        <div class="dp-score-badge" id="partnership-badge">— / 60</div>
+      </div>
+      <div class="dp-progress"><div class="dp-progress-fill" id="partnership-fill"></div></div>
+      <div id="partnership-questions"></div>
+    </section>
+
+    <div class="dp-result-card undetermined" id="result-card">
+      <div class="profile-name">Not yet determined</div>
+      <div class="profile-desc">Answer questions in each section above to determine a profile.</div>
+      <div class="quadrant">Pressure to Protect Value: —/60 · Partnership Mode: —/60</div>
+    </div>
+
+    <div class="status-banner" id="status-banner"></div>
+
+    <div class="actions">
+      <a class="btn" href="index.html" id="back-to-step1-link">← Back</a>
+      <button class="btn primary" id="confirm-btn" type="button">Confirm &amp; Next →</button>
+    </div>
+  </div>
+
+  <div class="card" id="error-state">
+    <p>This assessment link is no longer valid.</p>
+    <a class="btn primary" href="index.html">← Back to Meeting Context</a>
+  </div>
+</main>
+
+<script>
+const apiBaseInput = document.getElementById('api-base');
+apiBaseInput.value = localStorage.getItem('mc_api_base') || apiBaseInput.value;
+apiBaseInput.addEventListener('change', () => localStorage.setItem('mc_api_base', apiBaseInput.value));
+function apiBase() { return apiBaseInput.value.replace(/\/$/, ''); }
+
+const el = (id) => document.getElementById(id);
+const statusBanner = el('status-banner');
+const draftId = new URLSearchParams(window.location.search).get('draftId');
+
+const PROFILE_INFO = {
+  'Hedgehog': 'Under pressure — high pressure to protect value, prefers autonomy.',
+  'Wolf': 'Strategic partner — high pressure to protect value, open to co-leadership.',
+  'Polar Bear': 'Self-reliant and secure — low pressure to protect value, prefers autonomy.',
+  'Dolphin': 'Curious explorer — low pressure to protect value, open to co-leadership.',
+};
+
+let baseDraft = null; // every other draft field, fetched once — PUT replaces the whole draft, so this must be re-sent on every save
+let pressureScores = {};
+let partnershipScores = {};
+let saveTimer = null;
+
+function showStatus(message, kind) {
+  statusBanner.textContent = message;
+  statusBanner.className = 'status-banner ' + kind;
+}
+
+async function fetchJSON(path, options) {
+  const resp = await fetch(apiBase() + path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options,
+  });
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}));
+    const err = new Error(body.detail?.message || body.detail || resp.statusText);
+    err.status = resp.status;
+    err.body = body;
+    throw err;
+  }
+  return resp.json();
+}
+
+function sumScores(scores) {
+  const values = Object.values(scores);
+  return values.length ? values.reduce((a, b) => a + b, 0) : null;
+}
+
+// Mirrors distributor_profile.classify()'s rule for immediate feedback as
+// the rep answers. The persisted `distributor_profile` is always
+// recomputed server-side on save (context_api.py never trusts a client
+// value) — this is a preview only, never sent to the server directly.
+function classify(pressure, partnership) {
+  if (pressure === null || partnership === null || pressure === 30 || partnership === 30) return null;
+  const highPressure = pressure > 30;
+  const highPartnership = partnership > 30;
+  if (highPressure && !highPartnership) return 'Hedgehog';
+  if (highPressure && highPartnership) return 'Wolf';
+  if (!highPressure && !highPartnership) return 'Polar Bear';
+  return 'Dolphin';
+}
+
+function updateSectionDisplay(scores, badgeEl, fillEl) {
+  const total = sumScores(scores);
+  badgeEl.textContent = (total === null ? '—' : total) + ' / 60';
+  fillEl.style.width = (total === null ? 0 : (total / 60) * 100) + '%';
+}
+
+function updateResultCard() {
+  const pressure = sumScores(pressureScores);
+  const partnership = sumScores(partnershipScores);
+  const profile = classify(pressure, partnership);
+  const card = el('result-card');
+  const pText = pressure === null ? '—' : pressure;
+  const ptText = partnership === null ? '—' : partnership;
+  if (profile) {
+    card.className = 'dp-result-card';
+    card.innerHTML = `
+      <div class="profile-name">${profile}</div>
+      <div class="profile-desc">${PROFILE_INFO[profile]}</div>
+      <div class="quadrant">Pressure to Protect Value: ${pText}/60 · Partnership Mode: ${ptText}/60</div>
+    `;
+  } else {
+    card.className = 'dp-result-card undetermined';
+    card.innerHTML = `
+      <div class="profile-name">Not yet determined</div>
+      <div class="profile-desc">Answer more questions in each section above — these answers won't be included in the deck unless a profile is determined.</div>
+      <div class="quadrant">Pressure to Protect Value: ${pText}/60 · Partnership Mode: ${ptText}/60</div>
+    `;
+  }
+}
+
+function renderQuestions(container, questions, scores, badgeEl, fillEl) {
+  container.innerHTML = '';
+  for (const q of questions) {
+    const block = document.createElement('div');
+    block.className = 'dp-question';
+
+    const label = document.createElement('div');
+    label.innerHTML = `<div class="q-label">${q.criterion}</div><div class="q-text">${q.question}</div>`;
+
+    const pills = document.createElement('div');
+    pills.className = 'score-pills';
+
+    const makePill = (value, text, isSkip) => {
+      const pill = document.createElement('div');
+      pill.className = 'score-pill' + (isSkip ? ' skip' : '');
+      pill.textContent = text;
+      pill.dataset.value = value === null ? '' : String(value);
+      pill.addEventListener('click', () => {
+        if (value === null) delete scores[q.key];
+        else scores[q.key] = value;
+        for (const sibling of pills.children) sibling.classList.remove('selected');
+        pill.classList.add('selected');
+        updateSectionDisplay(scores, badgeEl, fillEl);
+        updateResultCard();
+        scheduleSave();
+      });
+      return pill;
+    };
+
+    pills.appendChild(makePill(null, 'Skip', true));
+    for (const score of q.possible_scores) pills.appendChild(makePill(score, String(score), false));
+
+    const current = scores[q.key];
+    const toSelect = current === undefined
+      ? pills.children[0]
+      : [...pills.children].find((p) => p.dataset.value === String(current));
+    if (toSelect) toSelect.classList.add('selected');
+
+    block.appendChild(label);
+    block.appendChild(pills);
+    container.appendChild(block);
+  }
+}
+
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveAnswers, 400);
+}
+
+async function saveAnswers() {
+  if (!baseDraft) return;
+  try {
+    await fetchJSON(`/meeting-context/${draftId}/draft`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        ...baseDraft,
+        distributor_profile_known: false,
+        distributor_profile: null, // server recomputes this from the scores below — never trusted from the client
+        pressure_scores: pressureScores,
+        partnership_scores: partnershipScores,
+      }),
+    });
+    showStatus('Saved', 'saved');
+  } catch (e) {
+    showStatus('Could not save answers: ' + e.message, 'error');
+  }
+}
+
+async function backToStep1() {
+  clearTimeout(saveTimer);
+  await saveAnswers();
+  window.location.href = 'index.html';
+}
+
+// The forward action for this (optional) step — works whether every
+// question was answered or every single one was left on "Skip": there's no
+// separate skip control, leaving everything unanswered and clicking this
+// IS skipping. Step 1's required fields are already satisfied by the time
+// a rep reaches step 2, so this can go straight to confirm + the deck.
+async function confirmAndNext() {
+  clearTimeout(saveTimer);
+  await saveAnswers();
+  try {
+    await fetchJSON(`/meeting-context/${draftId}/confirm`, { method: 'POST' });
+    window.location.href = 'deck-review.html?draftId=' + encodeURIComponent(draftId);
+  } catch (e) {
+    const prompts = e.body?.detail?.follow_up_prompts || [];
+    showStatus(prompts.length ? 'Still missing: ' + prompts.join(' ') : ('Error: ' + e.message), 'error');
+  }
+}
+
+el('back-link').addEventListener('click', (e) => { e.preventDefault(); backToStep1(); });
+el('back-to-step1-link').addEventListener('click', (e) => { e.preventDefault(); backToStep1(); });
+el('confirm-btn').addEventListener('click', confirmAndNext);
+
+(async function init() {
+  if (!draftId) {
+    el('assessment-card').style.display = 'none';
+    el('error-state').style.display = 'block';
+    return;
+  }
+  try {
+    const [record, questions] = await Promise.all([
+      fetchJSON(`/meeting-context/${draftId}`),
+      fetchJSON('/distributor-profile-questions'),
+    ]);
+    baseDraft = {
+      customer_id: record.customer_id,
+      meeting_type: record.meeting_type,
+      meeting_date: record.meeting_date,
+      duration_minutes: record.duration_minutes,
+      season: record.season,
+      campaign: record.campaign,
+      location: record.location,
+      objectives: record.objectives,
+      hook: record.hook,
+      focus_products: record.focus_products,
+      notes: record.notes,
+      distributor_profile_known: record.distributor_profile_known,
+      distributor_profile: record.distributor_profile,
+      pressure_scores: record.pressure_scores,
+      partnership_scores: record.partnership_scores,
+    };
+    pressureScores = { ...(record.pressure_scores || {}) };
+    partnershipScores = { ...(record.partnership_scores || {}) };
+
+    renderQuestions(el('pressure-questions'), questions.pressure_to_protect_value.questions, pressureScores, el('pressure-badge'), el('pressure-fill'));
+    renderQuestions(el('partnership-questions'), questions.partnership_mode.questions, partnershipScores, el('partnership-badge'), el('partnership-fill'));
+    updateSectionDisplay(pressureScores, el('pressure-badge'), el('pressure-fill'));
+    updateSectionDisplay(partnershipScores, el('partnership-badge'), el('partnership-fill'));
+    updateResultCard();
+    el('conn-status').textContent = '✓ connected';
+  } catch (e) {
+    el('assessment-card').style.display = 'none';
+    el('error-state').style.display = 'block';
+  }
+})();
+</script>
+</body>
+</html>

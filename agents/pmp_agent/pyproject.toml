@@ -1,0 +1,59 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pmp_agent"
+version = "0.1.0"
+description = "Pre-Meeting Preparation agent — LangGraph agents/tools/MCP, FastAPI + AG-UI serving"
+requires-python = ">=3.11"
+dependencies = [
+    "langgraph>=1.2,<2",
+    "langchain>=1.2",
+    "langchain-core>=0.3",
+    "langchain-openai>=1.7,<2",
+    "databricks-sdk>=0.40",
+    "ag-ui-langgraph>=0.0.47,<0.1",
+    "ag-ui-protocol>=0.1.22,<2",
+    "boto3>=1.34",
+    "python-dotenv>=1.0",
+    "fastapi",
+    "uvicorn[standard]",
+    "python-pptx",
+    "pydantic>=2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "httpx>=0.27.0",
+    "pytest-asyncio>=0.24",
+]
+
+[[tool.hatch.envs.default.matrix]]
+python = ["3.11"]
+
+[tool.hatch.build.targets.wheel]
+only-include = [
+    "app.py",
+    "schemas.py",
+    "mock_data.py",
+    "readiness.py",
+    "storage.py",
+    "context_api.py",
+    "decks_mock_data.py",
+    "builder.py",
+    "distributor_profile.py",
+    "agent_graphs",
+    "llm",
+    "mcp_tools",
+    "utils",
+    "data_access",
+    "pipeline",
+    "sql/templates",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
