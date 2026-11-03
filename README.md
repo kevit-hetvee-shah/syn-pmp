@@ -41,3 +41,13 @@ ai-foundry deploy --agent <slug> --env dev  # one agent
 | dev | Push to `main` (agent changes) |
 | stage | Git tag |
 | prod | Manual approval on tag |
+
+# RUN
+```shell
+cd agents/test_agent
+.venv/bin/python -m uvicorn app:app --host 0.0.0.0 --port 8080
+```
+
+```shell
+python3 -m http.server 5501 --directory agents/test_agent/meeting-context-ui
+```
